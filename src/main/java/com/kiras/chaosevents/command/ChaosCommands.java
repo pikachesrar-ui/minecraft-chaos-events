@@ -3,6 +3,7 @@ package com.kiras.chaosevents.command;
 import com.kiras.chaosevents.core.ChaosSessionManager;
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
+import com.kiras.chaosevents.trivia.TriviaEngine;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -10,79 +11,58 @@ import net.minecraft.server.MinecraftServer;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 public final class ChaosCommands {
-
     private static final String PREFIX = "[Chaos Events] ";
-
-    private ChaosCommands() {
-    }
+    private ChaosCommands() {}
 
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(
                 Commands.literal("chaos")
                         .requires(source -> source.hasPermission(2))
-                        .then(Commands.literal("start")
-                                .executes(context -> start(context.getSource())))
-                        .then(Commands.literal("pause")
-                                .executes(context -> pause(context.getSource())))
-                        .then(Commands.literal("resume")
-                                .executes(context -> resume(context.getSource())))
-                        .then(Commands.literal("stop")
-                                .executes(context -> stop(context.getSource())))
-                        .then(Commands.literal("status")
-                                .executes(context -> status(context.getSource())))
+                        .then(Commands.literal("start").executes(context -> start(context.getSource())))
+                        .then(Commands.literal("pause").executes(context -> pause(context.getSource())))
+                        .then(Commands.literal("resume").executes(context -> resume(context.getSource())))
+                        .then(Commands.literal("stop").executes(context -> stop(context.getSource())))
+                        .then(Commands.literal("status").executes(context -> status(context.getSource())))
                         .then(Commands.literal("test")
-                                .then(Commands.literal("big")
-                                        .executes(context -> testBig(context.getSource())))
-                                .then(Commands.literal("prank")
-                                        .executes(context -> testPrank(context.getSource()))))
+                                .then(Commands.literal("big").executes(context -> testBig(context.getSource())))
+                                .then(Commands.literal("prank").executes(context -> testPrank(context.getSource())))
+                                .then(Commands.literal("trivia").executes(context -> testTrivia(context.getSource())))
+                                .then(Commands.literal("swap").executes(context -> testSwap(context.getSource()))))
         );
     }
 
     private static int start(CommandSourceStack source) {
         if (!ChaosSessionManager.start(source.getServer())) {
-            source.sendFailure(Component.literal(
-                    PREFIX + "система уже запущена или находится на паузе."
-            ));
+            source.sendFailure(Component.literal(PREFIX + "система уже запущена или находится на паузе."));
             return 0;
         }
-
-        broadcast(source.getServer(),
-                "Система запущена. Большие ивенты и микроподлянки теперь работают независимо.");
+        broadcast(source.getServer(), "Система запущена: большие ивенты, микроподлянки и викторина работают независимо.");
         return 1;
     }
 
     private static int pause(CommandSourceStack source) {
         if (!ChaosSessionManager.pause()) {
-            source.sendFailure(Component.literal(
-                    PREFIX + "поставить систему на паузу сейчас нельзя."
-            ));
+            source.sendFailure(Component.literal(PREFIX + "поставить систему на паузу сейчас нельзя."));
             return 0;
         }
-
         broadcast(source.getServer(), "Все таймеры и активные механики заморожены.");
         return 1;
     }
 
     private static int resume(CommandSourceStack source) {
         if (!ChaosSessionManager.resume()) {
-            source.sendFailure(Component.literal(
-                    PREFIX + "система сейчас не находится на паузе."
-            ));
+            source.sendFailure(Component.literal(PREFIX + "система сейчас не находится на паузе."));
             return 0;
         }
-
         broadcast(source.getServer(), "Работа системы продолжена.");
         return 1;
     }
 
     private static int stop(CommandSourceStack source) {
         if (!ChaosSessionManager.stop(source.getServer())) {
-            source.sendFailure(Component.literal(
-                    PREFIX + "система уже остановлена."
-            ));
+            source.sendFailure(Component.literal(PREFIX + "система уже остановлена."));
             return 0;
         }
-
         broadcast(source.getServer(), "Система полностью остановлена, временные эффекты очищаются.");
         return 1;
     }
@@ -92,44 +72,53 @@ public final class ChaosCommands {
                 + "состояние: " + ChaosSessionManager.getStateName()
                 + "; " + ChaosSessionManager.getBigEventStatus()
                 + "; " + ChaosSessionManager.getMicroPrankStatus()
-                + "; загружено больших ивентов: " + BigEventEngine.getRegisteredEventCount()
-                + "; микроподлянок: " + MicroPrankEngine.getRegisteredPrankCount();
-
+                + "; " + ChaosSessionManager.getTriviaStatus()
+                + "; " + ChaosSessionManager.getSpatialStatus()
+                + "; больших ивентов: " + BigEventEngine.getRegisteredEventCount()
+                + "; микроподлянок: " + MicroPrankEngine.getRegisteredPrankCount()
+                + "; вопросов: " + TriviaEngine.getQuestionCount();
         source.sendSuccess(() -> Component.literal(text), false);
         return 1;
     }
 
     private static int testBig(CommandSourceStack source) {
         if (!ChaosSessionManager.forceBigEvent(source.getServer())) {
-            source.sendFailure(Component.literal(
-                    PREFIX + "сначала запусти систему командой /chaos start."
-            ));
+            source.sendFailure(Component.literal(PREFIX + "сначала запусти систему командой /chaos start."));
             return 0;
         }
-
-        source.sendSuccess(() -> Component.literal(
-                PREFIX + "случайный большой ивент запущен принудительно."
-        ), false);
+        source.sendSuccess(() -> Component.literal(PREFIX + "случайный большой ивент запущен принудительно."), false);
         return 1;
     }
 
     private static int testPrank(CommandSourceStack source) {
         if (!ChaosSessionManager.forceMicroPrank(source.getServer())) {
-            source.sendFailure(Component.literal(
-                    PREFIX + "система не запущена или на сервере нет игроков."
-            ));
+            source.sendFailure(Component.literal(PREFIX + "система не запущена или на сервере нет игроков."));
             return 0;
         }
+        source.sendSuccess(() -> Component.literal(PREFIX + "случайная микроподлянка применена к одному игроку."), false);
+        return 1;
+    }
 
-        source.sendSuccess(() -> Component.literal(
-                PREFIX + "случайная микроподлянка применена к одному игроку."
-        ), false);
+    private static int testTrivia(CommandSourceStack source) {
+        if (!ChaosSessionManager.forceTrivia(source.getServer())) {
+            source.sendFailure(Component.literal(PREFIX + "сначала запусти систему командой /chaos start."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(PREFIX + "вопрос викторины запущен принудительно."), false);
+        return 1;
+    }
+
+    private static int testSwap(CommandSourceStack source) {
+        if (!ChaosSessionManager.forceSpatialEvent(source.getServer())) {
+            source.sendFailure(Component.literal(PREFIX + "для пространственного сдвига система должна работать и нужны минимум два игрока."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(PREFIX + "пространственный сдвиг запущен принудительно."), false);
         return 1;
     }
 
     private static void broadcast(MinecraftServer server, String text) {
         Component message = Component.literal(PREFIX + text);
-        server.getPlayerList().getPlayers()
-                .forEach(player -> player.sendSystemMessage(message));
+        server.getPlayerList().getPlayers().forEach(player -> player.sendSystemMessage(message));
     }
 }
