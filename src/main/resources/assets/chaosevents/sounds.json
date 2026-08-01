@@ -1,0 +1,10 @@
+{
+  "screamer": {
+    "sounds": [
+      {
+        "name": "minecraft:entity.warden.roar",
+        "type": "event"
+      }
+    ]
+  }
+}
