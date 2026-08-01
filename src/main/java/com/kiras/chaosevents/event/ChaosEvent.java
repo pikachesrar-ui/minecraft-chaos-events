@@ -20,4 +20,17 @@ public interface ChaosEvent {
     void tick(MinecraftServer server, int elapsedTicks, int remainingTicks);
 
     void stop(MinecraftServer server);
+
+    /** Called when the whole Chaos Events session is paused. */
+    default void pause(MinecraftServer server) {
+    }
+
+    /** Called when a paused Chaos Events session resumes. */
+    default void resume(MinecraftServer server) {
+    }
+
+    /** Number of event-engine ticks that represent one displayed second. */
+    default int timerTicksPerSecond() {
+        return 20;
+    }
 }

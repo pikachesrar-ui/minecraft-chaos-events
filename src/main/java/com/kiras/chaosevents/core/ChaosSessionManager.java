@@ -23,14 +23,16 @@ public final class ChaosSessionManager {
         return true;
     }
 
-    public static synchronized boolean pause() {
+    public static synchronized boolean pause(MinecraftServer server) {
         if (state != State.RUNNING) return false;
+        BigEventEngine.pauseActiveEvent(server);
         state = State.PAUSED;
         return true;
     }
 
-    public static synchronized boolean resume() {
+    public static synchronized boolean resume(MinecraftServer server) {
         if (state != State.PAUSED) return false;
+        BigEventEngine.resumeActiveEvent(server);
         state = State.RUNNING;
         return true;
     }
@@ -79,6 +81,10 @@ public final class ChaosSessionManager {
 
     public static synchronized boolean forceSpatialEvent(MinecraftServer server) {
         return state == State.RUNNING && BigEventEngine.forceSpatialEvent(server);
+    }
+
+    public static synchronized boolean forceAcceleratedTimeEvent(MinecraftServer server) {
+        return state == State.RUNNING && BigEventEngine.forceAcceleratedTimeEvent(server);
     }
 
     public static synchronized boolean forceMicroPrank(MinecraftServer server) {

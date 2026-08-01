@@ -26,6 +26,7 @@ public final class ChaosCommands {
                         .then(Commands.literal("status").executes(context -> status(context.getSource())))
                         .then(Commands.literal("test")
                                 .then(Commands.literal("big").executes(context -> testBig(context.getSource())))
+                                .then(Commands.literal("speed").executes(context -> testSpeed(context.getSource())))
                                 .then(Commands.literal("prank").executes(context -> testPrank(context.getSource())))
                                 .then(Commands.literal("screamer").executes(context -> testScreamer(context.getSource())))
                                 .then(Commands.literal("trivia").executes(context -> testTrivia(context.getSource())))
@@ -43,7 +44,7 @@ public final class ChaosCommands {
     }
 
     private static int pause(CommandSourceStack source) {
-        if (!ChaosSessionManager.pause()) {
+        if (!ChaosSessionManager.pause(source.getServer())) {
             source.sendFailure(Component.literal(PREFIX + "поставить систему на паузу сейчас нельзя."));
             return 0;
         }
@@ -52,7 +53,7 @@ public final class ChaosCommands {
     }
 
     private static int resume(CommandSourceStack source) {
-        if (!ChaosSessionManager.resume()) {
+        if (!ChaosSessionManager.resume(source.getServer())) {
             source.sendFailure(Component.literal(PREFIX + "система сейчас не находится на паузе."));
             return 0;
         }
@@ -89,6 +90,15 @@ public final class ChaosCommands {
             return 0;
         }
         source.sendSuccess(() -> Component.literal(PREFIX + "случайный большой ивент запущен принудительно."), false);
+        return 1;
+    }
+
+    private static int testSpeed(CommandSourceStack source) {
+        if (!ChaosSessionManager.forceAcceleratedTimeEvent(source.getServer())) {
+            source.sendFailure(Component.literal(PREFIX + "сначала запусти систему командой /chaos start и зайди в мир."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(PREFIX + "ивент ускорения времени запущен: сервер переключён на 60 TPS."), false);
         return 1;
     }
 
