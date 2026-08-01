@@ -8,6 +8,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 public final class ChaosCommands {
@@ -26,6 +27,7 @@ public final class ChaosCommands {
                         .then(Commands.literal("test")
                                 .then(Commands.literal("big").executes(context -> testBig(context.getSource())))
                                 .then(Commands.literal("prank").executes(context -> testPrank(context.getSource())))
+                                .then(Commands.literal("screamer").executes(context -> testScreamer(context.getSource())))
                                 .then(Commands.literal("trivia").executes(context -> testTrivia(context.getSource())))
                                 .then(Commands.literal("swap").executes(context -> testSwap(context.getSource()))))
         );
@@ -96,6 +98,16 @@ public final class ChaosCommands {
             return 0;
         }
         source.sendSuccess(() -> Component.literal(PREFIX + "случайная микроподлянка применена к одному игроку."), false);
+        return 1;
+    }
+
+    private static int testScreamer(CommandSourceStack source) {
+        ServerPlayer preferredTarget = source.getEntity() instanceof ServerPlayer player ? player : null;
+        if (!MicroPrankEngine.forceScreamer(source.getServer(), preferredTarget)) {
+            source.sendFailure(Component.literal(PREFIX + "на сервере нет игроков для проверки скримера."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(PREFIX + "случайный скример показан выбранному игроку."), false);
         return 1;
     }
 
