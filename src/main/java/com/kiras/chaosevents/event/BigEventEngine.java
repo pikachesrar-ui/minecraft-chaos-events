@@ -199,7 +199,7 @@ public final class BigEventEngine {
             case "crushing_gravity" -> "Движение, сила и добыча сильно ослаблены";
             case "berserker_rush" -> "Скорость и урон растут вместе с голодом";
             case "time_quicksand" -> "Время замедляет движение и работу";
-            case "time_acceleration" -> "Сервер работает на 60 TPS: мир, мобы, игроки и механизмы ускорены втрое";
+            case "time_acceleration" -> "Мир ускорен в 10 раз, но игроки и их транспорт остаются в обычном времени";
             case "total_darkness" -> "Тьма и слепота скрывают всё вокруг";
             case "hunters_mark" -> "Игроки отмечены и становятся целью мобов";
             case "life_drain" -> "Иссушение постепенно отнимает здоровье";
