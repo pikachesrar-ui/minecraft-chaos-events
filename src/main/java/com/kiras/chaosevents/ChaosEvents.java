@@ -9,6 +9,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 
 @Mod(ChaosEvents.MODID)
@@ -20,6 +21,7 @@ public final class ChaosEvents {
     public ChaosEvents(IEventBus modEventBus, ModContainer modContainer) {
         NeoForge.EVENT_BUS.register(this);
         NeoForge.EVENT_BUS.addListener(ChaosCommands::onRegisterCommands);
+        NeoForge.EVENT_BUS.addListener(this::onServerTick);
 
         LOGGER.info("Chaos Events loaded");
     }
@@ -28,5 +30,9 @@ public final class ChaosEvents {
     public void onServerStarting(ServerStartingEvent event) {
         ChaosSessionManager.reset();
         LOGGER.info("Chaos Events: server started; waiting for /chaos start");
+    }
+
+    private void onServerTick(ServerTickEvent.Post event) {
+        ChaosSessionManager.tick(event.getServer());
     }
 }
