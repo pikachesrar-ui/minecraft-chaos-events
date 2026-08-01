@@ -36,6 +36,7 @@ public final class BigEventEngine {
         }
         events.add(ExternalDisasterEvent.TORNADO);
         events.add(ExternalDisasterEvent.METEOR_SHOWER);
+        events.add(AcceleratedTimeEvent.INSTANCE);
         events.add(SpatialSwapEvent.INSTANCE);
         EVENTS = List.copyOf(events);
     }
@@ -89,6 +90,14 @@ public final class BigEventEngine {
         phase = Phase.STOPPED;
     }
 
+    public static synchronized void pauseActiveEvent(MinecraftServer server) {
+        if (activeEvent != null) activeEvent.pause(server);
+    }
+
+    public static synchronized void resumeActiveEvent(MinecraftServer server) {
+        if (activeEvent != null) activeEvent.resume(server);
+    }
+
     public static synchronized void reset() {
         activeEvent = null;
         elapsedTicks = 0;
@@ -112,6 +121,15 @@ public final class BigEventEngine {
         }
         finishActiveEvent(server, false);
         startSelectedEvent(server, SpatialSwapEvent.INSTANCE);
+        return true;
+    }
+
+    public static boolean forceAcceleratedTimeEvent(MinecraftServer server) {
+        synchronized (BigEventEngine.class) {
+            if (phase == Phase.STOPPED || !AcceleratedTimeEvent.INSTANCE.isEligible(server)) return false;
+        }
+        finishActiveEvent(server, false);
+        startSelectedEvent(server, AcceleratedTimeEvent.INSTANCE);
         return true;
     }
 
@@ -142,7 +160,7 @@ public final class BigEventEngine {
             lastEventId = selected.id();
             elapsedTicks = 0;
             phase = Phase.ACTIVE;
-            ticksRemaining = chooseDurationTicks(selected.harsh());
+            ticksRemaining = chooseDurationTicks(selected);
             selectedDurationTicks = ticksRemaining;
         }
         selected.start(server);
@@ -150,7 +168,8 @@ public final class BigEventEngine {
     }
 
     private static void announceEventStart(MinecraftServer server, ChaosEvent event, int durationTicks) {
-        int durationSeconds = Math.max(1, durationTicks / TICKS_PER_SECOND);
+        int ticksPerSecond = Math.max(1, event.timerTicksPerSecond());
+        int durationSeconds = Math.max(1, durationTicks / ticksPerSecond);
         String description = descriptionFor(event.id());
 
         Component title = Component.literal(event.displayName())
@@ -180,6 +199,7 @@ public final class BigEventEngine {
             case "crushing_gravity" -> "Движение, сила и добыча сильно ослаблены";
             case "berserker_rush" -> "Скорость и урон растут вместе с голодом";
             case "time_quicksand" -> "Время замедляет движение и работу";
+            case "time_acceleration" -> "Сервер работает на 60 TPS: мир, мобы, игроки и механизмы ускорены втрое";
             case "total_darkness" -> "Тьма и слепота скрывают всё вокруг";
             case "hunters_mark" -> "Игроки отмечены и становятся целью мобов";
             case "life_drain" -> "Иссушение постепенно отнимает здоровье";
@@ -233,10 +253,11 @@ public final class BigEventEngine {
         }
     }
 
-    private static int chooseDurationTicks(boolean harsh) {
-        int min = harsh ? MIN_HARSH_DURATION_SECONDS : MIN_NORMAL_DURATION_SECONDS;
-        int max = harsh ? MAX_HARSH_DURATION_SECONDS : MAX_NORMAL_DURATION_SECONDS;
-        return ThreadLocalRandom.current().nextInt(min, max + 1) * TICKS_PER_SECOND;
+    private static int chooseDurationTicks(ChaosEvent event) {
+        int min = event.harsh() ? MIN_HARSH_DURATION_SECONDS : MIN_NORMAL_DURATION_SECONDS;
+        int max = event.harsh() ? MAX_HARSH_DURATION_SECONDS : MAX_NORMAL_DURATION_SECONDS;
+        int durationSeconds = ThreadLocalRandom.current().nextInt(min, max + 1);
+        return durationSeconds * Math.max(1, event.timerTicksPerSecond());
     }
 
     private static void scheduleBreak() {
@@ -253,7 +274,10 @@ public final class BigEventEngine {
 
     public static synchronized int getSecondsRemaining() {
         if (phase == Phase.STOPPED || ticksRemaining <= 0) return 0;
-        return (ticksRemaining + TICKS_PER_SECOND - 1) / TICKS_PER_SECOND;
+        int ticksPerSecond = phase == Phase.ACTIVE && activeEvent != null
+                ? Math.max(1, activeEvent.timerTicksPerSecond())
+                : TICKS_PER_SECOND;
+        return (ticksRemaining + ticksPerSecond - 1) / ticksPerSecond;
     }
 
     public static synchronized String getStatusText() {
