@@ -81,9 +81,13 @@ public final class ChaosCommands {
     }
 
     private static int status(CommandSourceStack source) {
+        String state = ChaosSessionManager.getStateName();
+        String time = ChaosSessionManager.getFormattedTimeUntilNextBigEvent();
+
         source.sendSuccess(
                 () -> Component.literal(
-                        PREFIX + "текущее состояние: " + ChaosSessionManager.getStateName()
+                        PREFIX + "состояние: " + state
+                                + "; до следующего большого ивента: " + time
                 ),
                 false
         );
