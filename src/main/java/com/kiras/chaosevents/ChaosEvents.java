@@ -2,6 +2,7 @@ package com.kiras.chaosevents;
 
 import com.kiras.chaosevents.command.ChaosCommands;
 import com.kiras.chaosevents.core.ChaosSessionManager;
+import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.network.ChaosNetwork;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
@@ -23,6 +24,7 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 
@@ -86,6 +88,18 @@ public final class ChaosEvents {
         InteractionResult result = SpatialSwapManager.activateAnchor(player.getServer(), player, event.getHand());
         if (result != InteractionResult.PASS) {
             event.setCancellationResult(result);
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public void onServerTickPre(ServerTickEvent.Pre event) {
+        AcceleratedTimeEvent.INSTANCE.beginServerTick();
+    }
+
+    @SubscribeEvent
+    public void onEntityTickPre(EntityTickEvent.Pre event) {
+        if (AcceleratedTimeEvent.INSTANCE.shouldCancelNormalSpeedEntityTick(event.getEntity())) {
             event.setCanceled(true);
         }
     }

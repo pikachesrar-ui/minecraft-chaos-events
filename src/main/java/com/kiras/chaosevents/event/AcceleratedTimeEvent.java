@@ -1,16 +1,26 @@
 package com.kiras.chaosevents.event;
 
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 
-/** Temporarily triples the whole server simulation speed from the previous tick rate to 60 TPS. */
+/**
+ * Runs the server world at 200 TPS while allowing players and their ridden
+ * entities to tick only once per ten server ticks. This keeps player movement,
+ * cooldowns and survival mechanics near normal 20 TPS while the rest of the
+ * loaded world advances ten times faster.
+ */
 public enum AcceleratedTimeEvent implements ChaosEvent {
     INSTANCE;
 
-    public static final float ACCELERATED_TICK_RATE = 60.0F;
-    private static final int TIMER_TICKS_PER_SECOND = 60;
+    public static final int WORLD_SPEED_MULTIPLIER = 10;
+    public static final float ACCELERATED_TICK_RATE = 20.0F * WORLD_SPEED_MULTIPLIER;
+    private static final int TIMER_TICKS_PER_SECOND = (int) ACCELERATED_TICK_RATE;
 
     private Float previousTickRate;
     private boolean accelerated;
+    private int acceleratedTickIndex;
+    private boolean normalSpeedTick;
 
     @Override
     public String id() {
@@ -19,7 +29,7 @@ public enum AcceleratedTimeEvent implements ChaosEvent {
 
     @Override
     public String displayName() {
-        return "Ускорение времени";
+        return "Ускорение мира";
     }
 
     @Override
@@ -40,18 +50,21 @@ public enum AcceleratedTimeEvent implements ChaosEvent {
 
     @Override
     public void tick(MinecraftServer server, int elapsedTicks, int remainingTicks) {
-        // The vanilla server tick-rate manager accelerates every dimension and normal server mechanic.
+        // Vanilla's tick-rate manager advances blocks, block entities, weather,
+        // time, redstone and ordinary entities at the accelerated server rate.
     }
 
     @Override
     public synchronized void stop(MinecraftServer server) {
         restorePreviousRate(server);
         previousTickRate = null;
+        resetTickGate();
     }
 
     @Override
     public synchronized void pause(MinecraftServer server) {
         restorePreviousRate(server);
+        resetTickGate();
     }
 
     @Override
@@ -66,9 +79,45 @@ public enum AcceleratedTimeEvent implements ChaosEvent {
         return TIMER_TICKS_PER_SECOND;
     }
 
+    /** Called at the start of each server tick before entities are processed. */
+    public synchronized void beginServerTick() {
+        if (!accelerated) {
+            normalSpeedTick = true;
+            return;
+        }
+
+        acceleratedTickIndex = (acceleratedTickIndex + 1) % WORLD_SPEED_MULTIPLIER;
+        normalSpeedTick = acceleratedTickIndex == 0;
+    }
+
+    /**
+     * Cancels nine out of ten server-side ticks for players. A vehicle carrying
+     * a player is gated as well, otherwise riding a boat, horse or minecart
+     * would move the player at ten times normal speed.
+     */
+    public synchronized boolean shouldCancelNormalSpeedEntityTick(Entity entity) {
+        if (!accelerated || entity.level().isClientSide) {
+            return false;
+        }
+
+        boolean protectedEntity = entity instanceof ServerPlayer
+                || carriesServerPlayer(entity);
+        return protectedEntity && !normalSpeedTick;
+    }
+
+    /** Keeps Chaos Events' own prank and trivia delays in real time. */
+    public synchronized boolean shouldTickAuxiliarySystems() {
+        return !accelerated || normalSpeedTick;
+    }
+
+    public synchronized boolean isAccelerated() {
+        return accelerated;
+    }
+
     private void applyAcceleration(MinecraftServer server) {
         server.tickRateManager().setTickRate(ACCELERATED_TICK_RATE);
         accelerated = true;
+        resetTickGate();
     }
 
     private void restorePreviousRate(MinecraftServer server) {
@@ -77,5 +126,19 @@ public enum AcceleratedTimeEvent implements ChaosEvent {
         }
         server.tickRateManager().setTickRate(previousTickRate);
         accelerated = false;
+    }
+
+    private void resetTickGate() {
+        acceleratedTickIndex = 0;
+        normalSpeedTick = true;
+    }
+
+    private static boolean carriesServerPlayer(Entity entity) {
+        for (Entity passenger : entity.getPassengers()) {
+            if (passenger instanceof ServerPlayer || carriesServerPlayer(passenger)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

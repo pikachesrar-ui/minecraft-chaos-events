@@ -1,5 +1,6 @@
 package com.kiras.chaosevents.core;
 
+import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
 import com.kiras.chaosevents.spatial.SpatialSwapManager;
@@ -70,9 +71,12 @@ public final class ChaosSessionManager {
         synchronized (ChaosSessionManager.class) {
             if (state != State.RUNNING) return;
         }
+
         BigEventEngine.tick(server);
-        MicroPrankEngine.tick(server);
-        TriviaEngine.tick(server);
+        if (AcceleratedTimeEvent.INSTANCE.shouldTickAuxiliarySystems()) {
+            MicroPrankEngine.tick(server);
+            TriviaEngine.tick(server);
+        }
     }
 
     public static synchronized boolean forceBigEvent(MinecraftServer server) {
