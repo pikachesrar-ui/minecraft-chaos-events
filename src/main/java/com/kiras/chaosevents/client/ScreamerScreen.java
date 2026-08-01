@@ -8,25 +8,30 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
-/** Displays one numbered PNG from a matching PNG/OGG screamer pair. */
+/** Displays one numbered PNG stretched to the current screen size. */
 @OnlyIn(Dist.CLIENT)
 public final class ScreamerScreen extends Screen {
+    private static final int MAX_DURATION_TICKS = 3 * 20;
+
     private final Screen previousScreen;
     private final int slot;
+    private final ResourceLocation soundId;
     private int ticksRemaining;
+    private boolean closing;
 
-    public ScreamerScreen(Screen previousScreen, int slot, int ticksRemaining) {
+    public ScreamerScreen(Screen previousScreen, int slot, int ticksRemaining, ResourceLocation soundId) {
         super(Component.empty());
         this.previousScreen = previousScreen;
         this.slot = slot;
-        this.ticksRemaining = ticksRemaining;
+        this.ticksRemaining = Math.max(1, Math.min(MAX_DURATION_TICKS, ticksRemaining));
+        this.soundId = soundId;
     }
 
     @Override
     public void tick() {
         ticksRemaining--;
-        if (ticksRemaining <= 0 && minecraft != null) {
-            minecraft.setScreen(previousScreen);
+        if (ticksRemaining <= 0) {
+            closeScreamer();
         }
     }
 
@@ -36,10 +41,14 @@ public final class ScreamerScreen extends Screen {
         if (slot > 0 && minecraft != null
                 && minecraft.getResourceManager().getResource(customTexture).isPresent()) {
             graphics.fill(0, 0, width, height, 0xFF000000);
-            graphics.blit(customTexture, 0, 0, 0.0F, 0.0F, width, height, width, height);
+            renderStretchedFullscreen(graphics, customTexture);
             return;
         }
         renderFallback(graphics);
+    }
+
+    private void renderStretchedFullscreen(GuiGraphics graphics, ResourceLocation texture) {
+        graphics.blit(texture, 0, 0, 0.0F, 0.0F, width, height, width, height);
     }
 
     private static ResourceLocation textureForSlot(int slot) {
@@ -47,6 +56,23 @@ public final class ScreamerScreen extends Screen {
                 ChaosEvents.MODID,
                 "textures/gui/screamers/" + Math.max(1, slot) + ".png"
         );
+    }
+
+    private void closeScreamer() {
+        if (closing || minecraft == null) {
+            return;
+        }
+        closing = true;
+        minecraft.getSoundManager().stop(soundId, null);
+        minecraft.setScreen(previousScreen);
+    }
+
+    @Override
+    public void removed() {
+        if (!closing && minecraft != null) {
+            minecraft.getSoundManager().stop(soundId, null);
+        }
+        super.removed();
     }
 
     private void renderFallback(GuiGraphics graphics) {
