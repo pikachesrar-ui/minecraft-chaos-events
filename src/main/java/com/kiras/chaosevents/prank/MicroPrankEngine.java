@@ -34,6 +34,7 @@ public final class MicroPrankEngine {
     private static final int MIN_DELAY_SECONDS = 60;
     private static final int MAX_DELAY_SECONDS = 3 * 60;
     private static final int HELD_ITEM_RETURN_TICKS = 4 * TICKS_PER_SECOND;
+    private static final int SCREAMER_DURATION_TICKS = 3 * TICKS_PER_SECOND;
     private static final String PREFIX = "[Микроподлянка] ";
 
     private static final List<PrankType> PRANKS = List.of(PrankType.values());
@@ -43,6 +44,7 @@ public final class MicroPrankEngine {
     private static int ticksUntilNextPrank;
     private static UUID lastTarget;
     private static int consecutiveTargetCount;
+    private static PrankType lastPrank;
 
     private MicroPrankEngine() {}
 
@@ -52,6 +54,7 @@ public final class MicroPrankEngine {
         SafeTntPrank.clear();
         lastTarget = null;
         consecutiveTargetCount = 0;
+        lastPrank = null;
         scheduleNextPrank();
     }
 
@@ -77,6 +80,7 @@ public final class MicroPrankEngine {
         ticksUntilNextPrank = 0;
         lastTarget = null;
         consecutiveTargetCount = 0;
+        lastPrank = null;
     }
 
     public static synchronized void reset() {
@@ -86,6 +90,7 @@ public final class MicroPrankEngine {
         SafeTntPrank.clear();
         lastTarget = null;
         consecutiveTargetCount = 0;
+        lastPrank = null;
     }
 
     public static boolean forceRandomPrank(MinecraftServer server) {
@@ -95,14 +100,42 @@ public final class MicroPrankEngine {
         return triggerRandomPrank(server);
     }
 
+    /** Test helper that works even when the normal chaos session is stopped. */
+    public static boolean forceScreamer(MinecraftServer server, ServerPlayer preferredTarget) {
+        ServerPlayer target = preferredTarget;
+        if (target == null || server.getPlayerList().getPlayer(target.getUUID()) == null) {
+            List<ServerPlayer> players = server.getPlayerList().getPlayers();
+            if (players.isEmpty()) return false;
+            target = players.get(ThreadLocalRandom.current().nextInt(players.size()));
+        }
+
+        ChaosNetwork.sendScreamer(target, 0, SCREAMER_DURATION_TICKS);
+        return true;
+    }
+
     private static boolean triggerRandomPrank(MinecraftServer server) {
         ServerPlayer target = chooseTarget(server);
         if (target == null) return false;
 
-        PrankType prank = PRANKS.get(ThreadLocalRandom.current().nextInt(PRANKS.size()));
+        PrankType prank = choosePrank();
         applyPrank(target, prank);
         announcePrank(server, target, prank);
         return true;
+    }
+
+    private static synchronized PrankType choosePrank() {
+        if (PRANKS.size() == 1) {
+            lastPrank = PRANKS.getFirst();
+            return lastPrank;
+        }
+
+        PrankType selected;
+        do {
+            selected = PRANKS.get(ThreadLocalRandom.current().nextInt(PRANKS.size()));
+        } while (selected == lastPrank);
+
+        lastPrank = selected;
+        return selected;
     }
 
     private static synchronized ServerPlayer chooseTarget(MinecraftServer server) {
@@ -124,11 +157,11 @@ public final class MicroPrankEngine {
     private static void applyPrank(ServerPlayer player, PrankType prank) {
         switch (prank) {
             case SCREAMER_RAGE -> {
-                ChaosNetwork.sendScreamer(player, 0, 24);
+                ChaosNetwork.sendScreamer(player, 0, SCREAMER_DURATION_TICKS);
                 effect(player, MobEffects.DARKNESS, 80, 0);
             }
             case SCREAMER_VOID -> {
-                ChaosNetwork.sendScreamer(player, 1, 32);
+                ChaosNetwork.sendScreamer(player, 1, SCREAMER_DURATION_TICKS);
                 effect(player, MobEffects.CONFUSION, 100, 0);
             }
             case TNT_BEHIND -> SafeTntPrank.spawnBehind(player);
