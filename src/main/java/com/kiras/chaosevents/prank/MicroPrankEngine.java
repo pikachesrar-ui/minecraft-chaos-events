@@ -159,7 +159,7 @@ public final class MicroPrankEngine {
             case HELD_ITEM_VANISH -> hideHeldItem(player);
             case FAKE_ITEM_BREAK -> sound(player, SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 1.0F, 0.9F);
             case PORTAL_WHISPER -> sound(player, SoundEvents.PORTAL_TRAVEL, SoundSource.AMBIENT, 0.8F, 1.4F);
-            case FIRE_TICKLE -> player.setSecondsOnFire(1);
+            case FIRE_TICKLE -> player.igniteForSeconds(1.0F);
             case EXPERIENCE_FAKEOUT -> {
                 sound(player, SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 0.8F, 0.5F);
                 player.giveExperiencePoints(1);
