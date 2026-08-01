@@ -213,7 +213,7 @@ public enum BuiltinChaosEvent implements ChaosEvent {
                     player.serverLevel().playSound(null, player.blockPosition(), SoundEvents.LIGHTNING_BOLT_THUNDER,
                             SoundSource.WEATHER, 1.5F, 0.8F + ThreadLocalRandom.current().nextFloat() * 0.4F));
             case FIRESTORM -> forPlayers(server, player -> {
-                player.setSecondsOnFire(3);
+                player.igniteForSeconds(3.0F);
                 player.serverLevel().sendParticles(ParticleTypes.FLAME, player.getX(), player.getY() + 1.0,
                         player.getZ(), 24, 1.0, 1.0, 1.0, 0.05);
             });
