@@ -1,19 +1,13 @@
 package com.kiras.chaosevents.core;
 
-import net.minecraft.network.chat.Component;
+import com.kiras.chaosevents.event.BigEventEngine;
+import com.kiras.chaosevents.prank.MicroPrankEngine;
 import net.minecraft.server.MinecraftServer;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 /**
- * Stores the current state and server-side timers of the Chaos Events session.
+ * Central lifecycle controller for one server Chaos Events session.
  */
 public final class ChaosSessionManager {
-
-    private static final int TICKS_PER_SECOND = 20;
-    private static final int MIN_BIG_EVENT_DELAY_SECONDS = 5 * 60;
-    private static final int MAX_BIG_EVENT_DELAY_SECONDS = 10 * 60;
-    private static final String PREFIX = "[Chaos Events] ";
 
     public enum State {
         STOPPED,
@@ -22,18 +16,18 @@ public final class ChaosSessionManager {
     }
 
     private static State state = State.STOPPED;
-    private static int ticksUntilNextBigEvent;
 
     private ChaosSessionManager() {
     }
 
-    public static synchronized boolean start() {
+    public static synchronized boolean start(MinecraftServer server) {
         if (state != State.STOPPED) {
             return false;
         }
 
         state = State.RUNNING;
-        scheduleNextBigEvent();
+        BigEventEngine.startSession();
+        MicroPrankEngine.startSession();
         return true;
     }
 
@@ -55,67 +49,52 @@ public final class ChaosSessionManager {
         return true;
     }
 
-    public static synchronized boolean stop() {
+    public static synchronized boolean stop(MinecraftServer server) {
         if (state == State.STOPPED) {
             return false;
         }
 
+        BigEventEngine.stopSession(server);
+        MicroPrankEngine.stopSession(server);
         state = State.STOPPED;
-        ticksUntilNextBigEvent = 0;
         return true;
     }
 
     public static synchronized void reset() {
         state = State.STOPPED;
-        ticksUntilNextBigEvent = 0;
+        BigEventEngine.reset();
+        MicroPrankEngine.reset();
+    }
+
+    public static synchronized void shutdown(MinecraftServer server) {
+        if (state != State.STOPPED) {
+            BigEventEngine.stopSession(server);
+            MicroPrankEngine.stopSession(server);
+        }
+        state = State.STOPPED;
     }
 
     /**
-     * Called once after every server tick. The countdown only moves while the
-     * session is running, so pausing the session freezes the timer exactly.
+     * Called after every server tick. A paused session deliberately executes
+     * neither engine, so all countdowns and temporary prank restorations freeze.
      */
     public static void tick(MinecraftServer server) {
-        boolean shouldTriggerEvent = false;
-
         synchronized (ChaosSessionManager.class) {
             if (state != State.RUNNING) {
                 return;
             }
-
-            if (ticksUntilNextBigEvent > 0) {
-                ticksUntilNextBigEvent--;
-            }
-
-            if (ticksUntilNextBigEvent <= 0) {
-                shouldTriggerEvent = true;
-                scheduleNextBigEvent();
-            }
         }
 
-        if (shouldTriggerEvent) {
-            runTestBigEvent(server);
-        }
+        BigEventEngine.tick(server);
+        MicroPrankEngine.tick(server);
     }
 
-    private static void scheduleNextBigEvent() {
-        int delaySeconds = ThreadLocalRandom.current().nextInt(
-                MIN_BIG_EVENT_DELAY_SECONDS,
-                MAX_BIG_EVENT_DELAY_SECONDS + 1
-        );
-        ticksUntilNextBigEvent = delaySeconds * TICKS_PER_SECOND;
+    public static synchronized boolean forceBigEvent(MinecraftServer server) {
+        return state == State.RUNNING && BigEventEngine.forceRandomEvent(server);
     }
 
-    /**
-     * Temporary global event used to verify that the timer works for every
-     * connected player. It will later be replaced by the real event selector.
-     */
-    private static void runTestBigEvent(MinecraftServer server) {
-        Component message = Component.literal(
-                PREFIX + "ГЛОБАЛЬНЫЙ ТЕСТОВЫЙ ИВЕНТ: пространство стало нестабильным!"
-        );
-
-        server.getPlayerList().getPlayers()
-                .forEach(player -> player.sendSystemMessage(message));
+    public static synchronized boolean forceMicroPrank(MinecraftServer server) {
+        return state == State.RUNNING && MicroPrankEngine.forceRandomPrank(server);
     }
 
     public static synchronized State getState() {
@@ -130,22 +109,11 @@ public final class ChaosSessionManager {
         };
     }
 
-    public static synchronized int getSecondsUntilNextBigEvent() {
-        if (state == State.STOPPED || ticksUntilNextBigEvent <= 0) {
-            return 0;
-        }
-
-        return (ticksUntilNextBigEvent + TICKS_PER_SECOND - 1) / TICKS_PER_SECOND;
+    public static String getBigEventStatus() {
+        return BigEventEngine.getStatusText();
     }
 
-    public static synchronized String getFormattedTimeUntilNextBigEvent() {
-        if (state == State.STOPPED) {
-            return "не запланирован";
-        }
-
-        int totalSeconds = getSecondsUntilNextBigEvent();
-        int minutes = totalSeconds / 60;
-        int seconds = totalSeconds % 60;
-        return String.format("%d:%02d", minutes, seconds);
+    public static String getMicroPrankStatus() {
+        return MicroPrankEngine.getStatusText();
     }
 }
