@@ -98,7 +98,9 @@ public final class ChaosCommands {
             source.sendFailure(Component.literal(PREFIX + "сначала запусти систему командой /chaos start и зайди в мир."));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal(PREFIX + "ивент ускорения времени запущен: сервер переключён на 60 TPS."), false);
+        source.sendSuccess(() -> Component.literal(
+                PREFIX + "ивент ускорения мира запущен: мир работает на 200 TPS, игроки сохраняют обычную скорость."
+        ), false);
         return 1;
     }
 
