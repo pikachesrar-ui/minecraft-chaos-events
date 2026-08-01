@@ -10,7 +10,6 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -29,7 +28,14 @@ public final class BigEventEngine {
 
     private static final List<ChaosEvent> EVENTS;
     static {
-        List<ChaosEvent> events = new ArrayList<>(Arrays.asList(BuiltinChaosEvent.values()));
+        List<ChaosEvent> events = new ArrayList<>();
+        for (BuiltinChaosEvent event : BuiltinChaosEvent.values()) {
+            if (event != BuiltinChaosEvent.KINETIC_STORM && event != BuiltinChaosEvent.METEOR_BARRAGE) {
+                events.add(event);
+            }
+        }
+        events.add(ExternalDisasterEvent.TORNADO);
+        events.add(ExternalDisasterEvent.METEOR_SHOWER);
         events.add(SpatialSwapEvent.INSTANCE);
         EVENTS = List.copyOf(events);
     }
@@ -181,9 +187,9 @@ public final class BigEventEngine {
             case "famine" -> "Сытость быстро исчезает";
             case "skyhook" -> "Небо регулярно утягивает игроков вверх";
             case "chaos_roulette" -> "Проклятия постоянно меняются";
-            case "kinetic_storm" -> "Удары ветра разбрасывают игроков";
+            case "kinetic_storm" -> "Настоящий торнадо Weather2 движется к игрокам";
             case "lightning_hunt" -> "Молнии преследуют игроков";
-            case "meteor_barrage" -> "С неба падают взрывающиеся метеоры";
+            case "meteor_barrage" -> "Настоящий метеоритный дождь обрушивается с неба";
             case "blood_moon" -> "Ночь вызывает смешанные волны нежити";
             case "zombie_siege" -> "Зомби непрерывно окружают игроков";
             case "skeleton_volley" -> "Скелеты устраивают дальний расстрел";

@@ -8,46 +8,52 @@ import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
-/** Uses custom 256x256 PNGs when present, otherwise draws a procedural fallback. */
+/** Displays one numbered PNG from a matching PNG/OGG screamer pair. */
 @OnlyIn(Dist.CLIENT)
 public final class ScreamerScreen extends Screen {
-    private static final ResourceLocation[] CUSTOM_TEXTURES = {
-            ResourceLocation.fromNamespaceAndPath(ChaosEvents.MODID, "textures/gui/screamer_1.png"),
-            ResourceLocation.fromNamespaceAndPath(ChaosEvents.MODID, "textures/gui/screamer_2.png")
-    };
-
     private final Screen previousScreen;
-    private final int variant;
+    private final int slot;
     private int ticksRemaining;
 
-    public ScreamerScreen(Screen previousScreen, int variant, int ticksRemaining) {
+    public ScreamerScreen(Screen previousScreen, int slot, int ticksRemaining) {
         super(Component.empty());
         this.previousScreen = previousScreen;
-        this.variant = Math.floorMod(variant, CUSTOM_TEXTURES.length);
+        this.slot = slot;
         this.ticksRemaining = ticksRemaining;
     }
 
     @Override
     public void tick() {
         ticksRemaining--;
-        if (ticksRemaining <= 0 && minecraft != null) minecraft.setScreen(previousScreen);
+        if (ticksRemaining <= 0 && minecraft != null) {
+            minecraft.setScreen(previousScreen);
+        }
     }
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        ResourceLocation customTexture = CUSTOM_TEXTURES[variant];
-        if (minecraft != null && minecraft.getResourceManager().getResource(customTexture).isPresent()) {
+        ResourceLocation customTexture = textureForSlot(slot);
+        if (slot > 0 && minecraft != null
+                && minecraft.getResourceManager().getResource(customTexture).isPresent()) {
             graphics.fill(0, 0, width, height, 0xFF000000);
-            graphics.blit(customTexture, 0, 0, 0.0F, 0.0F, width, height, 256, 256);
+            graphics.blit(customTexture, 0, 0, 0.0F, 0.0F, width, height, width, height);
             return;
         }
         renderFallback(graphics);
     }
 
+    private static ResourceLocation textureForSlot(int slot) {
+        return ResourceLocation.fromNamespaceAndPath(
+                ChaosEvents.MODID,
+                "textures/gui/screamers/" + Math.max(1, slot) + ".png"
+        );
+    }
+
     private void renderFallback(GuiGraphics graphics) {
-        int background = variant == 0 ? 0xFF150000 : 0xFF000008;
-        int face = variant == 0 ? 0xFFE6D4C4 : 0xFFBFC7D8;
-        int accent = variant == 0 ? 0xFFFF1010 : 0xFF6D3CFF;
+        boolean alternate = Math.floorMod(slot, 2) == 0;
+        int background = alternate ? 0xFF000008 : 0xFF150000;
+        int face = alternate ? 0xFFBFC7D8 : 0xFFE6D4C4;
+        int accent = alternate ? 0xFF6D3CFF : 0xFFFF1010;
         graphics.fill(0, 0, width, height, background);
 
         int cx = width / 2;
@@ -70,10 +76,17 @@ public final class ScreamerScreen extends Screen {
                 left + faceWidth * 3 / 4, top + faceHeight * 5 / 12, accent);
 
         int jitter = (ticksRemaining % 4) - 2;
-        graphics.drawCenteredString(font, variant == 0 ? "RUN" : "НЕ ОБОРАЧИВАЙСЯ",
+        graphics.drawCenteredString(font, alternate ? "НЕ ОБОРАЧИВАЙСЯ" : "RUN",
                 cx + jitter, Math.max(8, top - 18), accent);
     }
 
-    @Override public boolean isPauseScreen() { return false; }
-    @Override public boolean shouldCloseOnEsc() { return false; }
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+
+    @Override
+    public boolean shouldCloseOnEsc() {
+        return false;
+    }
 }
