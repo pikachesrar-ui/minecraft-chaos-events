@@ -5,6 +5,7 @@ import com.kiras.chaosevents.network.ScreamerPayload;
 import com.kiras.chaosevents.registry.ModSounds;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
@@ -15,6 +16,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @OnlyIn(Dist.CLIENT)
 public final class ClientScreamerHandler {
+    private static final int MIN_DURATION_TICKS = 8;
+    private static final int MAX_DURATION_TICKS = 3 * 20;
     private static int lastSlot = -1;
 
     private ClientScreamerHandler() {
@@ -27,16 +30,27 @@ public final class ClientScreamerHandler {
         }
 
         int slot = chooseAvailablePair(minecraft);
+        SoundEvent sound;
+        float pitch;
         if (slot > 0) {
-            minecraft.player.playSound(ModSounds.screamer(slot), 2.0F, 1.0F);
+            sound = ModSounds.screamer(slot);
+            pitch = 1.0F;
         } else {
-            minecraft.player.playSound(SoundEvents.WARDEN_ROAR, 2.0F, 0.8F);
+            sound = SoundEvents.WARDEN_ROAR;
+            pitch = 0.8F;
         }
 
+        minecraft.player.playSound(sound, 2.0F, pitch);
+
+        int durationTicks = Math.max(
+                MIN_DURATION_TICKS,
+                Math.min(MAX_DURATION_TICKS, payload.durationTicks())
+        );
         minecraft.setScreen(new ScreamerScreen(
                 minecraft.screen,
                 slot,
-                Math.max(8, payload.durationTicks())
+                durationTicks,
+                sound.getLocation()
         ));
     }
 
