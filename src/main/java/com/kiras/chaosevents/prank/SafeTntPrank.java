@@ -87,7 +87,7 @@ final class SafeTntPrank {
 
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER, x, y, z,
                 1, 0.0, 0.0, 0.0, 0.0);
-        level.playSound(null, BlockPos.containing(x, y, z), SoundEvents.GENERIC_EXPLODE,
+        level.playSound(null, BlockPos.containing(x, y, z), SoundEvents.GENERIC_EXPLODE.value(),
                 SoundSource.BLOCKS, 0.9F, 1.15F);
 
         ServerPlayer target = server.getPlayerList().getPlayer(pending.targetId);
