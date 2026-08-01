@@ -1,6 +1,8 @@
 package com.kiras.chaosevents.command;
 
 import com.kiras.chaosevents.core.ChaosSessionManager;
+import com.kiras.chaosevents.event.BigEventEngine;
+import com.kiras.chaosevents.prank.MicroPrankEngine;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -28,11 +30,16 @@ public final class ChaosCommands {
                                 .executes(context -> stop(context.getSource())))
                         .then(Commands.literal("status")
                                 .executes(context -> status(context.getSource())))
+                        .then(Commands.literal("test")
+                                .then(Commands.literal("big")
+                                        .executes(context -> testBig(context.getSource())))
+                                .then(Commands.literal("prank")
+                                        .executes(context -> testPrank(context.getSource()))))
         );
     }
 
     private static int start(CommandSourceStack source) {
-        if (!ChaosSessionManager.start()) {
+        if (!ChaosSessionManager.start(source.getServer())) {
             source.sendFailure(Component.literal(
                     PREFIX + "система уже запущена или находится на паузе."
             ));
@@ -40,7 +47,7 @@ public final class ChaosCommands {
         }
 
         broadcast(source.getServer(),
-                "Система запущена. Первый большой ивент начнётся через 5–10 минут.");
+                "Система запущена. Большие ивенты и микроподлянки теперь работают независимо.");
         return 1;
     }
 
@@ -52,7 +59,7 @@ public final class ChaosCommands {
             return 0;
         }
 
-        broadcast(source.getServer(), "Все таймеры приостановлены.");
+        broadcast(source.getServer(), "Все таймеры и активные механики заморожены.");
         return 1;
     }
 
@@ -69,28 +76,54 @@ public final class ChaosCommands {
     }
 
     private static int stop(CommandSourceStack source) {
-        if (!ChaosSessionManager.stop()) {
+        if (!ChaosSessionManager.stop(source.getServer())) {
             source.sendFailure(Component.literal(
                     PREFIX + "система уже остановлена."
             ));
             return 0;
         }
 
-        broadcast(source.getServer(), "Система полностью остановлена.");
+        broadcast(source.getServer(), "Система полностью остановлена, временные эффекты очищаются.");
         return 1;
     }
 
     private static int status(CommandSourceStack source) {
-        String state = ChaosSessionManager.getStateName();
-        String time = ChaosSessionManager.getFormattedTimeUntilNextBigEvent();
+        String text = PREFIX
+                + "состояние: " + ChaosSessionManager.getStateName()
+                + "; " + ChaosSessionManager.getBigEventStatus()
+                + "; " + ChaosSessionManager.getMicroPrankStatus()
+                + "; загружено больших ивентов: " + BigEventEngine.getRegisteredEventCount()
+                + "; микроподлянок: " + MicroPrankEngine.getRegisteredPrankCount();
 
-        source.sendSuccess(
-                () -> Component.literal(
-                        PREFIX + "состояние: " + state
-                                + "; до следующего большого ивента: " + time
-                ),
-                false
-        );
+        source.sendSuccess(() -> Component.literal(text), false);
+        return 1;
+    }
+
+    private static int testBig(CommandSourceStack source) {
+        if (!ChaosSessionManager.forceBigEvent(source.getServer())) {
+            source.sendFailure(Component.literal(
+                    PREFIX + "сначала запусти систему командой /chaos start."
+            ));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal(
+                PREFIX + "случайный большой ивент запущен принудительно."
+        ), false);
+        return 1;
+    }
+
+    private static int testPrank(CommandSourceStack source) {
+        if (!ChaosSessionManager.forceMicroPrank(source.getServer())) {
+            source.sendFailure(Component.literal(
+                    PREFIX + "система не запущена или на сервере нет игроков."
+            ));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal(
+                PREFIX + "случайная микроподлянка применена к одному игроку."
+        ), false);
         return 1;
     }
 
