@@ -16,12 +16,12 @@ import net.minecraft.world.phys.Vec3;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Independent 6-12 minute trivia cycle with a 20 second answer window. */
+/** Independent 6-12 minute trivia cycle with a 10 second answer window. */
 public final class TriviaEngine {
     private static final int TICKS_PER_SECOND = 20;
     private static final int MIN_DELAY_SECONDS = 6 * 60;
     private static final int MAX_DELAY_SECONDS = 12 * 60;
-    private static final int ANSWER_WINDOW_TICKS = 20 * TICKS_PER_SECOND;
+    private static final int ANSWER_WINDOW_TICKS = 10 * TICKS_PER_SECOND;
     private static final String PREFIX = "[Викторина] ";
     private static final List<TriviaQuestion> QUESTIONS = TriviaQuestionBank.QUESTIONS;
 
@@ -136,7 +136,7 @@ public final class TriviaEngine {
 
         broadcast(server, "Категория: " + selected.category());
         broadcast(server, selected.prompt());
-        broadcast(server, "Первый правильный ответ в чате за 20 секунд получит награду.");
+        broadcast(server, "Первый правильный ответ в чате за 10 секунд получит награду.");
         server.getPlayerList().getPlayers().forEach(player ->
                 player.serverLevel().playSound(null, player.blockPosition(), SoundEvents.NOTE_BLOCK_BELL.value(),
                         SoundSource.PLAYERS, 1.0F, 1.15F));
