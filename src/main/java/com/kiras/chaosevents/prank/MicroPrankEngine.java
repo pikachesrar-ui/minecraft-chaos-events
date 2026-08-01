@@ -4,6 +4,7 @@ import com.kiras.chaosevents.network.ChaosNetwork;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,10 +18,8 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,6 +34,7 @@ public final class MicroPrankEngine {
     private static final int MIN_DELAY_SECONDS = 60;
     private static final int MAX_DELAY_SECONDS = 3 * 60;
     private static final int HELD_ITEM_RETURN_TICKS = 4 * TICKS_PER_SECOND;
+    private static final String PREFIX = "[Микроподлянка] ";
 
     private static final List<PrankType> PRANKS = List.of(PrankType.values());
     private static final List<PendingHeldItem> PENDING_ITEMS = new ArrayList<>();
@@ -49,6 +49,7 @@ public final class MicroPrankEngine {
     public static synchronized void startSession() {
         active = true;
         PENDING_ITEMS.clear();
+        SafeTntPrank.clear();
         lastTarget = null;
         consecutiveTargetCount = 0;
         scheduleNextPrank();
@@ -57,6 +58,7 @@ public final class MicroPrankEngine {
     public static void tick(MinecraftServer server) {
         synchronized (MicroPrankEngine.class) {
             if (!active) return;
+            SafeTntPrank.tick(server);
             tickPendingItems(server);
             if (ticksUntilNextPrank > 0) ticksUntilNextPrank--;
             if (ticksUntilNextPrank > 0) return;
@@ -70,6 +72,7 @@ public final class MicroPrankEngine {
 
     public static synchronized void stopSession(MinecraftServer server) {
         restoreAllPendingItems(server);
+        SafeTntPrank.clear();
         active = false;
         ticksUntilNextPrank = 0;
         lastTarget = null;
@@ -80,6 +83,7 @@ public final class MicroPrankEngine {
         active = false;
         ticksUntilNextPrank = 0;
         PENDING_ITEMS.clear();
+        SafeTntPrank.clear();
         lastTarget = null;
         consecutiveTargetCount = 0;
     }
@@ -94,8 +98,10 @@ public final class MicroPrankEngine {
     private static boolean triggerRandomPrank(MinecraftServer server) {
         ServerPlayer target = chooseTarget(server);
         if (target == null) return false;
+
         PrankType prank = PRANKS.get(ThreadLocalRandom.current().nextInt(PRANKS.size()));
         applyPrank(target, prank);
+        announcePrank(server, target, prank);
         return true;
     }
 
@@ -125,7 +131,7 @@ public final class MicroPrankEngine {
                 ChaosNetwork.sendScreamer(player, 1, 32);
                 effect(player, MobEffects.CONFUSION, 100, 0);
             }
-            case TNT_BEHIND -> spawnTntBehind(player);
+            case TNT_BEHIND -> SafeTntPrank.spawnBehind(player);
             case CREEPER_AMBUSH -> spawnNear(player, EntityType.CREEPER, 2, 3);
             case SILVERFISH_SWARM -> spawnNear(player, EntityType.SILVERFISH, 5, 4);
             case LIGHTNING_STRIKE -> strikeLightning(player);
@@ -184,6 +190,14 @@ public final class MicroPrankEngine {
         }
     }
 
+    private static void announcePrank(MinecraftServer server, ServerPlayer target, PrankType prank) {
+        Component message = Component.literal(
+                PREFIX + "Игрок " + target.getGameProfile().getName()
+                        + " получил подлянку «" + prank.displayName + "»: " + prank.description + "."
+        );
+        server.getPlayerList().getPlayers().forEach(player -> player.sendSystemMessage(message));
+    }
+
     private static void sound(ServerPlayer player, SoundEvent sound, SoundSource source, float volume, float pitch) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         player.serverLevel().playSound(null, player.blockPosition().offset(random.nextInt(-3, 4), 0, random.nextInt(-3, 4)),
@@ -192,17 +206,6 @@ public final class MicroPrankEngine {
 
     private static void effect(ServerPlayer player, Holder<MobEffect> effect, int duration, int amplifier) {
         player.addEffect(new MobEffectInstance(effect, duration, amplifier, false, false, true));
-    }
-
-    private static void spawnTntBehind(ServerPlayer player) {
-        ServerLevel level = player.serverLevel();
-        PrimedTnt tnt = EntityType.TNT.create(level);
-        if (tnt == null) return;
-        Vec3 behind = player.position().subtract(player.getLookAngle().scale(2.5));
-        tnt.moveTo(behind.x, behind.y + 0.2, behind.z);
-        tnt.setFuse(55);
-        level.addFreshEntity(tnt);
-        sound(player, SoundEvents.TNT_PRIMED, SoundSource.BLOCKS, 1.2F, 0.8F);
     }
 
     private static void strikeLightning(ServerPlayer player) {
@@ -316,16 +319,45 @@ public final class MicroPrankEngine {
     public static int getRegisteredPrankCount() { return PRANKS.size(); }
 
     private enum PrankType {
-        SCREAMER_RAGE, SCREAMER_VOID, TNT_BEHIND, CREEPER_AMBUSH, SILVERFISH_SWARM, LIGHTNING_STRIKE,
-        RANDOM_TELEPORT, VIOLENT_LAUNCH, DOWNWARD_SLAM, LEVITATION_DROP, HELD_ITEM_VANISH, HOTBAR_SHUFFLE,
-        HAND_SWAP, HUNGER_CRASH, XP_DRAIN, FIRE_BURST, DARKNESS_NAUSEA, WITHER_TOUCH, SLOW_TRAP,
-        PHANTOM_ATTACK, ZOMBIE_RING, ENDERMAN_VISIT, INVENTORY_JIGGLE, CREEPER_PANIC
+        SCREAMER_RAGE("Яростный скример", "на экране внезапно появился скример"),
+        SCREAMER_VOID("Скример Бездны", "Бездна резко захватила экран"),
+        TNT_BEHIND("TNT за спиной", "за спиной появился безопасный TNT"),
+        CREEPER_AMBUSH("Засада криперов", "рядом появились два крипера"),
+        SILVERFISH_SWARM("Рой чешуйниц", "вокруг появился рой чешуйниц"),
+        LIGHTNING_STRIKE("Удар молнии", "в игрока ударила молния"),
+        RANDOM_TELEPORT("Случайный телепорт", "игрока переместило в случайную точку"),
+        VIOLENT_LAUNCH("Сильный толчок", "игрока резко подбросило"),
+        DOWNWARD_SLAM("Удар вниз", "игрока резко потянуло к земле"),
+        LEVITATION_DROP("Левитационный сбой", "игрок взлетел и начал падать"),
+        HELD_ITEM_VANISH("Исчезнувший предмет", "предмет в руке временно пропал"),
+        HOTBAR_SHUFFLE("Перемешанный хотбар", "слоты хотбара перемешались"),
+        HAND_SWAP("Обмен рук", "предметы в руках поменялись местами"),
+        HUNGER_CRASH("Приступ голода", "сытость резко уменьшилась"),
+        XP_DRAIN("Кража опыта", "часть опыта исчезла"),
+        FIRE_BURST("Вспышка огня", "игрок внезапно загорелся"),
+        DARKNESS_NAUSEA("Тьма и тошнота", "игрок потерял ориентацию"),
+        WITHER_TOUCH("Касание иссушения", "на игрока наложилось иссушение"),
+        SLOW_TRAP("Ловушка замедления", "движение и добыча сильно замедлились"),
+        PHANTOM_ATTACK("Атака фантомов", "рядом появились фантомы"),
+        ZOMBIE_RING("Кольцо зомби", "игрока окружили зомби"),
+        ENDERMAN_VISIT("Визит эндерменов", "рядом появились эндермены"),
+        INVENTORY_JIGGLE("Инвентарная встряска", "хотбар и руки перемешались"),
+        CREEPER_PANIC("Крипер-паника", "раздалось шипение и экран ослеп");
+
+        private final String displayName;
+        private final String description;
+
+        PrankType(String displayName, String description) {
+            this.displayName = displayName;
+            this.description = description;
+        }
     }
 
     private static final class PendingHeldItem {
         private final UUID playerId;
         private final ItemStack stack;
         private int ticksRemaining;
+
         private PendingHeldItem(UUID playerId, ItemStack stack, int ticksRemaining) {
             this.playerId = playerId;
             this.stack = stack;
