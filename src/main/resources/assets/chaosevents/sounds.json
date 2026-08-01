@@ -1,9 +1,81 @@
 {
-  "screamer": {
+  "screamer_1": {
     "sounds": [
       {
-        "name": "minecraft:entity.warden.roar",
-        "type": "event"
+        "name": "chaosevents:screamers/1",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_2": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/2",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_3": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/3",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_4": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/4",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_5": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/5",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_6": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/6",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_7": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/7",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_8": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/8",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_9": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/9",
+        "stream": false
+      }
+    ]
+  },
+  "screamer_10": {
+    "sounds": [
+      {
+        "name": "chaosevents:screamers/10",
+        "stream": false
       }
     ]
   }
