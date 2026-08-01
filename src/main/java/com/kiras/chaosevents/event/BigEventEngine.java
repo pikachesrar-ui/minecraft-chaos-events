@@ -1,7 +1,13 @@
 package com.kiras.chaosevents.event;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
+import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -124,15 +130,84 @@ public final class BigEventEngine {
     }
 
     private static void startSelectedEvent(MinecraftServer server, ChaosEvent selected) {
+        int selectedDurationTicks;
         synchronized (BigEventEngine.class) {
             activeEvent = selected;
             lastEventId = selected.id();
             elapsedTicks = 0;
             phase = Phase.ACTIVE;
             ticksRemaining = chooseDurationTicks(selected.harsh());
+            selectedDurationTicks = ticksRemaining;
         }
         selected.start(server);
-        broadcast(server, "Начался большой ивент: " + selected.displayName() + "!");
+        announceEventStart(server, selected, selectedDurationTicks);
+    }
+
+    private static void announceEventStart(MinecraftServer server, ChaosEvent event, int durationTicks) {
+        int durationSeconds = Math.max(1, durationTicks / TICKS_PER_SECOND);
+        String description = descriptionFor(event.id());
+
+        Component title = Component.literal(event.displayName())
+                .withStyle(ChatFormatting.RED, ChatFormatting.BOLD);
+        Component subtitle = Component.literal(
+                        "Длительность: " + formatSeconds(durationSeconds) + " • " + description
+                )
+                .withStyle(ChatFormatting.GOLD);
+        Component chatMessage = Component.literal(
+                PREFIX + "Начался большой ивент: " + event.displayName()
+                        + " — " + description
+                        + " (" + formatSeconds(durationSeconds) + ")"
+        );
+
+        server.getPlayerList().getPlayers().forEach(player -> {
+            player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 80, 20));
+            player.connection.send(new ClientboundSetSubtitleTextPacket(subtitle));
+            player.connection.send(new ClientboundSetTitleTextPacket(title));
+            player.playNotifySound(SoundEvents.WITHER_SPAWN, SoundSource.MASTER, 0.85F, 1.0F);
+            player.sendSystemMessage(chatMessage);
+        });
+    }
+
+    private static String descriptionFor(String eventId) {
+        return switch (eventId) {
+            case "gravity_failure" -> "Гравитация постоянно подбрасывает игроков";
+            case "crushing_gravity" -> "Движение, сила и добыча сильно ослаблены";
+            case "berserker_rush" -> "Скорость и урон растут вместе с голодом";
+            case "time_quicksand" -> "Время замедляет движение и работу";
+            case "total_darkness" -> "Тьма и слепота скрывают всё вокруг";
+            case "hunters_mark" -> "Игроки отмечены и становятся целью мобов";
+            case "life_drain" -> "Иссушение постепенно отнимает здоровье";
+            case "toxic_air" -> "Ядовитый воздух отравляет и дезориентирует";
+            case "famine" -> "Сытость быстро исчезает";
+            case "skyhook" -> "Небо регулярно утягивает игроков вверх";
+            case "chaos_roulette" -> "Проклятия постоянно меняются";
+            case "kinetic_storm" -> "Удары ветра разбрасывают игроков";
+            case "lightning_hunt" -> "Молнии преследуют игроков";
+            case "meteor_barrage" -> "С неба падают взрывающиеся метеоры";
+            case "blood_moon" -> "Ночь вызывает смешанные волны нежити";
+            case "zombie_siege" -> "Зомби непрерывно окружают игроков";
+            case "skeleton_volley" -> "Скелеты устраивают дальний расстрел";
+            case "spider_bloom" -> "Вокруг игроков появляются стаи пауков";
+            case "creeper_migration" -> "Криперы массово сходятся к игрокам";
+            case "lava_geysers" -> "Лава подбрасывает и поджигает игроков";
+            case "infernal_hunger" -> "Ад высасывает сытость и силу";
+            case "blaze_swarm" -> "Ифриты атакуют регулярными волнами";
+            case "magma_march" -> "Магмовые кубы заполняют окрестности";
+            case "withered_air" -> "Воздух Незера вызывает иссушение";
+            case "soul_crush" -> "Души давят тьмой и слабостью";
+            case "firestorm" -> "Огненные вспышки постоянно поджигают";
+            case "piglin_hunt" -> "Жестокие пиглины начинают охоту";
+            case "void_lightness" -> "Бездна нарушает прыжки и падение";
+            case "ender_static" -> "Помехи телепортируют и дезориентируют";
+            case "enderman_convergence" -> "Эндермены собираются вокруг игроков";
+            case "shulker_echo" -> "Левитация повторяется волнами";
+            case "dragon_breath" -> "Драконье дыхание отравляет пространство";
+            case "chorus_shift" -> "Телепортации перемешивают игроков и хотбар";
+            case "void_silence" -> "Слепота и слабость накрывают Край";
+            case "end_crystal_storm" -> "Рядом появляются опасные кристаллы Края";
+            case "spatial_swap" -> "Игроки меняются местами между измерениями";
+            default -> "Переживите воздействие хаоса";
+        };
     }
 
     private static void finishActiveEvent(MinecraftServer server, boolean announce) {
