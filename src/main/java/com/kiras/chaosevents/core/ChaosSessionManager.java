@@ -2,60 +2,45 @@ package com.kiras.chaosevents.core;
 
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
+import com.kiras.chaosevents.spatial.SpatialSwapManager;
+import com.kiras.chaosevents.trivia.TriviaEngine;
 import net.minecraft.server.MinecraftServer;
 
-/**
- * Central lifecycle controller for one server Chaos Events session.
- */
+/** Central lifecycle controller for one server Chaos Events session. */
 public final class ChaosSessionManager {
-
-    public enum State {
-        STOPPED,
-        RUNNING,
-        PAUSED
-    }
+    public enum State { STOPPED, RUNNING, PAUSED }
 
     private static State state = State.STOPPED;
 
-    private ChaosSessionManager() {
-    }
+    private ChaosSessionManager() {}
 
     public static synchronized boolean start(MinecraftServer server) {
-        if (state != State.STOPPED) {
-            return false;
-        }
-
+        if (state != State.STOPPED) return false;
         state = State.RUNNING;
         BigEventEngine.startSession();
         MicroPrankEngine.startSession();
+        TriviaEngine.startSession();
         return true;
     }
 
     public static synchronized boolean pause() {
-        if (state != State.RUNNING) {
-            return false;
-        }
-
+        if (state != State.RUNNING) return false;
         state = State.PAUSED;
         return true;
     }
 
     public static synchronized boolean resume() {
-        if (state != State.PAUSED) {
-            return false;
-        }
-
+        if (state != State.PAUSED) return false;
         state = State.RUNNING;
         return true;
     }
 
     public static synchronized boolean stop(MinecraftServer server) {
-        if (state == State.STOPPED) {
-            return false;
-        }
-
+        if (state == State.STOPPED) return false;
         BigEventEngine.stopSession(server);
         MicroPrankEngine.stopSession(server);
+        TriviaEngine.stopSession();
+        SpatialSwapManager.stopEvent(server);
         state = State.STOPPED;
         return true;
     }
@@ -64,42 +49,49 @@ public final class ChaosSessionManager {
         state = State.STOPPED;
         BigEventEngine.reset();
         MicroPrankEngine.reset();
+        TriviaEngine.reset();
+        SpatialSwapManager.reset();
     }
 
     public static synchronized void shutdown(MinecraftServer server) {
         if (state != State.STOPPED) {
             BigEventEngine.stopSession(server);
             MicroPrankEngine.stopSession(server);
+            TriviaEngine.stopSession();
+            SpatialSwapManager.stopEvent(server);
         }
         state = State.STOPPED;
     }
 
-    /**
-     * Called after every server tick. A paused session deliberately executes
-     * neither engine, so all countdowns and temporary prank restorations freeze.
-     */
+    /** Pausing deliberately prevents every engine from ticking. */
     public static void tick(MinecraftServer server) {
         synchronized (ChaosSessionManager.class) {
-            if (state != State.RUNNING) {
-                return;
-            }
+            if (state != State.RUNNING) return;
         }
-
         BigEventEngine.tick(server);
         MicroPrankEngine.tick(server);
+        TriviaEngine.tick(server);
     }
 
     public static synchronized boolean forceBigEvent(MinecraftServer server) {
         return state == State.RUNNING && BigEventEngine.forceRandomEvent(server);
     }
 
+    public static synchronized boolean forceSpatialEvent(MinecraftServer server) {
+        return state == State.RUNNING && BigEventEngine.forceSpatialEvent(server);
+    }
+
     public static synchronized boolean forceMicroPrank(MinecraftServer server) {
         return state == State.RUNNING && MicroPrankEngine.forceRandomPrank(server);
     }
 
-    public static synchronized State getState() {
-        return state;
+    public static synchronized boolean forceTrivia(MinecraftServer server) {
+        return state == State.RUNNING && TriviaEngine.forceQuestion(server);
     }
+
+    public static synchronized State getState() { return state; }
+
+    public static synchronized boolean isRunning() { return state == State.RUNNING; }
 
     public static synchronized String getStateName() {
         return switch (state) {
@@ -109,11 +101,8 @@ public final class ChaosSessionManager {
         };
     }
 
-    public static String getBigEventStatus() {
-        return BigEventEngine.getStatusText();
-    }
-
-    public static String getMicroPrankStatus() {
-        return MicroPrankEngine.getStatusText();
-    }
+    public static String getBigEventStatus() { return BigEventEngine.getStatusText(); }
+    public static String getMicroPrankStatus() { return MicroPrankEngine.getStatusText(); }
+    public static String getTriviaStatus() { return TriviaEngine.getStatusText(); }
+    public static String getSpatialStatus() { return SpatialSwapManager.getStatusText(); }
 }

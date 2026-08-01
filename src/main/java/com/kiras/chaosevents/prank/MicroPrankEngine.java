@@ -1,8 +1,11 @@
 package com.kiras.chaosevents.prank;
 
+import com.kiras.chaosevents.network.ChaosNetwork;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -11,25 +14,27 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.LightningBolt;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * Independent hidden timer for small pranks aimed at one random player.
- */
+/** Independent hidden timer for twenty-four substantial pranks aimed at one random player. */
 public final class MicroPrankEngine {
-
     private static final int TICKS_PER_SECOND = 20;
     private static final int MIN_DELAY_SECONDS = 60;
     private static final int MAX_DELAY_SECONDS = 3 * 60;
-    private static final int HELD_ITEM_RETURN_TICKS = 3 * TICKS_PER_SECOND;
+    private static final int HELD_ITEM_RETURN_TICKS = 4 * TICKS_PER_SECOND;
 
     private static final List<PrankType> PRANKS = List.of(PrankType.values());
     private static final List<PendingHeldItem> PENDING_ITEMS = new ArrayList<>();
@@ -39,8 +44,7 @@ public final class MicroPrankEngine {
     private static UUID lastTarget;
     private static int consecutiveTargetCount;
 
-    private MicroPrankEngine() {
-    }
+    private MicroPrankEngine() {}
 
     public static synchronized void startSession() {
         active = true;
@@ -52,27 +56,15 @@ public final class MicroPrankEngine {
 
     public static void tick(MinecraftServer server) {
         synchronized (MicroPrankEngine.class) {
-            if (!active) {
-                return;
-            }
-
+            if (!active) return;
             tickPendingItems(server);
-
-            if (ticksUntilNextPrank > 0) {
-                ticksUntilNextPrank--;
-            }
-
-            if (ticksUntilNextPrank > 0) {
-                return;
-            }
+            if (ticksUntilNextPrank > 0) ticksUntilNextPrank--;
+            if (ticksUntilNextPrank > 0) return;
         }
 
         triggerRandomPrank(server);
-
         synchronized (MicroPrankEngine.class) {
-            if (active) {
-                scheduleNextPrank();
-            }
+            if (active) scheduleNextPrank();
         }
     }
 
@@ -94,19 +86,14 @@ public final class MicroPrankEngine {
 
     public static boolean forceRandomPrank(MinecraftServer server) {
         synchronized (MicroPrankEngine.class) {
-            if (!active) {
-                return false;
-            }
+            if (!active) return false;
         }
         return triggerRandomPrank(server);
     }
 
     private static boolean triggerRandomPrank(MinecraftServer server) {
         ServerPlayer target = chooseTarget(server);
-        if (target == null) {
-            return false;
-        }
-
+        if (target == null) return false;
         PrankType prank = PRANKS.get(ThreadLocalRandom.current().nextInt(PRANKS.size()));
         applyPrank(target, prank);
         return true;
@@ -114,14 +101,10 @@ public final class MicroPrankEngine {
 
     private static synchronized ServerPlayer chooseTarget(MinecraftServer server) {
         List<ServerPlayer> candidates = new ArrayList<>(server.getPlayerList().getPlayers());
-        if (candidates.isEmpty()) {
-            return null;
-        }
-
+        if (candidates.isEmpty()) return null;
         if (lastTarget != null && consecutiveTargetCount >= 2 && candidates.size() > 1) {
             candidates.removeIf(player -> player.getUUID().equals(lastTarget));
         }
-
         ServerPlayer selected = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
         if (selected.getUUID().equals(lastTarget)) {
             consecutiveTargetCount++;
@@ -134,94 +117,154 @@ public final class MicroPrankEngine {
 
     private static void applyPrank(ServerPlayer player, PrankType prank) {
         switch (prank) {
-            case CREEPER_HISS -> sound(player, SoundEvents.CREEPER_PRIMED, SoundSource.HOSTILE, 1.0F, 1.0F);
-            case TNT_FUSE -> sound(player, SoundEvents.TNT_PRIMED, SoundSource.BLOCKS, 1.0F, 0.85F);
-            case ANVIL_CRASH -> sound(player, SoundEvents.ANVIL_LAND, SoundSource.BLOCKS, 1.2F, 0.7F);
-            case THUNDER_CLAP -> sound(player, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.WEATHER, 1.5F, 1.1F);
-            case GHAST_SCREAM -> sound(player, SoundEvents.GHAST_SCREAM, SoundSource.HOSTILE, 1.0F, 1.0F);
-            case ENDERMAN_STARE -> sound(player, SoundEvents.ENDERMAN_STARE, SoundSource.HOSTILE, 1.0F, 0.8F);
-            case PHANTOM_SWOOP -> sound(player, SoundEvents.PHANTOM_SWOOP, SoundSource.HOSTILE, 1.0F, 1.2F);
-            case WARDEN_HEARTBEAT -> sound(player, SoundEvents.WARDEN_HEARTBEAT, SoundSource.HOSTILE, 1.2F, 0.8F);
-            case DARK_BLINK -> effect(player, MobEffects.DARKNESS, 60, 0);
-            case BLIND_BLINK -> effect(player, MobEffects.BLINDNESS, 40, 0);
-            case NAUSEA_WAVE -> effect(player, MobEffects.CONFUSION, 100, 0);
-            case LEVITATION_BUMP -> effect(player, MobEffects.LEVITATION, 18, 1);
-            case SLOW_FEET -> effect(player, MobEffects.MOVEMENT_SLOWDOWN, 80, 2);
-            case WEAK_HANDS -> effect(player, MobEffects.DIG_SLOWDOWN, 100, 1);
-            case GLOW_MARK -> {
-                effect(player, MobEffects.GLOWING, 120, 0);
-                player.serverLevel().sendParticles(ParticleTypes.END_ROD, player.getX(), player.getY() + 1.0,
-                        player.getZ(), 10, 0.4, 0.8, 0.4, 0.02);
+            case SCREAMER_RAGE -> {
+                ChaosNetwork.sendScreamer(player, 0, 24);
+                effect(player, MobEffects.DARKNESS, 80, 0);
             }
-            case HUNGER_NIBBLE -> player.getFoodData().addExhaustion(2.5F);
-            case RANDOM_PUSH -> randomPush(player);
-            case HOTBAR_ROTATE -> rotateHotbar(player);
+            case SCREAMER_VOID -> {
+                ChaosNetwork.sendScreamer(player, 1, 32);
+                effect(player, MobEffects.CONFUSION, 100, 0);
+            }
+            case TNT_BEHIND -> spawnTntBehind(player);
+            case CREEPER_AMBUSH -> spawnNear(player, EntityType.CREEPER, 2, 3);
+            case SILVERFISH_SWARM -> spawnNear(player, EntityType.SILVERFISH, 5, 4);
+            case LIGHTNING_STRIKE -> strikeLightning(player);
+            case RANDOM_TELEPORT -> randomTeleport(player, 18);
+            case VIOLENT_LAUNCH -> player.setDeltaMovement(player.getDeltaMovement().add(
+                    ThreadLocalRandom.current().nextDouble(-1.2, 1.2), 1.75,
+                    ThreadLocalRandom.current().nextDouble(-1.2, 1.2)));
+            case DOWNWARD_SLAM -> player.setDeltaMovement(player.getDeltaMovement().add(0.0, -2.2, 0.0));
+            case LEVITATION_DROP -> {
+                effect(player, MobEffects.LEVITATION, 50, 3);
+                effect(player, MobEffects.SLOW_FALLING, 140, 0);
+            }
             case HELD_ITEM_VANISH -> hideHeldItem(player);
-            case FAKE_ITEM_BREAK -> sound(player, SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 1.0F, 0.9F);
-            case PORTAL_WHISPER -> sound(player, SoundEvents.PORTAL_TRAVEL, SoundSource.AMBIENT, 0.8F, 1.4F);
-            case FIRE_TICKLE -> player.igniteForSeconds(1.0F);
-            case EXPERIENCE_FAKEOUT -> {
-                sound(player, SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 0.8F, 0.5F);
-                player.giveExperiencePoints(1);
+            case HOTBAR_SHUFFLE -> shuffleHotbar(player);
+            case HAND_SWAP -> swapHands(player);
+            case HUNGER_CRASH -> {
+                player.getFoodData().addExhaustion(16.0F);
+                effect(player, MobEffects.HUNGER, 180, 3);
             }
-            case INVENTORY_JIGGLE -> swapTwoHotbarSlots(player);
+            case XP_DRAIN -> {
+                player.giveExperiencePoints(-7);
+                sound(player, SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 1.0F, 0.35F);
+            }
+            case FIRE_BURST -> {
+                player.igniteForSeconds(6.0F);
+                player.serverLevel().sendParticles(ParticleTypes.FLAME, player.getX(), player.getY() + 1.0,
+                        player.getZ(), 45, 0.8, 1.0, 0.8, 0.1);
+            }
+            case DARKNESS_NAUSEA -> {
+                effect(player, MobEffects.DARKNESS, 180, 0);
+                effect(player, MobEffects.CONFUSION, 180, 1);
+            }
+            case WITHER_TOUCH -> {
+                effect(player, MobEffects.WITHER, 100, 1);
+                effect(player, MobEffects.WEAKNESS, 180, 1);
+            }
+            case SLOW_TRAP -> {
+                effect(player, MobEffects.MOVEMENT_SLOWDOWN, 200, 4);
+                effect(player, MobEffects.DIG_SLOWDOWN, 200, 3);
+            }
+            case PHANTOM_ATTACK -> spawnNear(player, EntityType.PHANTOM, 2, 7);
+            case ZOMBIE_RING -> spawnNear(player, EntityType.ZOMBIE, 4, 5);
+            case ENDERMAN_VISIT -> {
+                spawnNear(player, EntityType.ENDERMAN, 2, 5);
+                sound(player, SoundEvents.ENDERMAN_STARE, SoundSource.HOSTILE, 1.2F, 0.65F);
+            }
+            case INVENTORY_JIGGLE -> {
+                rotateHotbar(player);
+                swapHands(player);
+            }
+            case CREEPER_PANIC -> {
+                sound(player, SoundEvents.CREEPER_PRIMED, SoundSource.HOSTILE, 1.5F, 0.75F);
+                effect(player, MobEffects.BLINDNESS, 55, 0);
+                player.setDeltaMovement(player.getDeltaMovement().add(0.0, 0.8, 0.0));
+            }
         }
     }
 
     private static void sound(ServerPlayer player, SoundEvent sound, SoundSource source, float volume, float pitch) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        int dx = random.nextInt(-3, 4);
-        int dz = random.nextInt(-3, 4);
-        player.serverLevel().playSound(null, player.blockPosition().offset(dx, 0, dz), sound, source, volume, pitch);
+        player.serverLevel().playSound(null, player.blockPosition().offset(random.nextInt(-3, 4), 0, random.nextInt(-3, 4)),
+                sound, source, volume, pitch);
     }
 
     private static void effect(ServerPlayer player, Holder<MobEffect> effect, int duration, int amplifier) {
         player.addEffect(new MobEffectInstance(effect, duration, amplifier, false, false, true));
     }
 
-    private static void randomPush(ServerPlayer player) {
+    private static void spawnTntBehind(ServerPlayer player) {
+        ServerLevel level = player.serverLevel();
+        PrimedTnt tnt = EntityType.TNT.create(level);
+        if (tnt == null) return;
+        Vec3 behind = player.position().subtract(player.getLookAngle().scale(2.5));
+        tnt.moveTo(behind.x, behind.y + 0.2, behind.z);
+        tnt.setFuse(55);
+        level.addFreshEntity(tnt);
+        sound(player, SoundEvents.TNT_PRIMED, SoundSource.BLOCKS, 1.2F, 0.8F);
+    }
+
+    private static void strikeLightning(ServerPlayer player) {
+        LightningBolt lightning = EntityType.LIGHTNING_BOLT.create(player.serverLevel());
+        if (lightning == null) return;
+        lightning.moveTo(player.getX(), player.getY(), player.getZ());
+        player.serverLevel().addFreshEntity(lightning);
+    }
+
+    private static void spawnNear(ServerPlayer player, EntityType<? extends Mob> type, int count, int radius) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        Vec3 push = new Vec3(
-                random.nextDouble(-0.8, 0.8),
-                random.nextDouble(0.2, 0.55),
-                random.nextDouble(-0.8, 0.8)
-        );
-        player.setDeltaMovement(player.getDeltaMovement().add(push));
+        ServerLevel level = player.serverLevel();
+        BlockPos base = player.blockPosition();
+        for (int i = 0; i < count; i++) {
+            Mob mob = type.create(level);
+            if (mob == null) continue;
+            mob.moveTo(base.getX() + 0.5 + random.nextInt(-radius, radius + 1),
+                    base.getY() + 1.0,
+                    base.getZ() + 0.5 + random.nextInt(-radius, radius + 1),
+                    random.nextFloat() * 360.0F, 0.0F);
+            mob.setPersistenceRequired();
+            level.addFreshEntity(mob);
+        }
+    }
+
+    private static void randomTeleport(ServerPlayer player, int radius) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        player.randomTeleport(player.getX() + random.nextInt(-radius, radius + 1),
+                player.getY() + random.nextInt(-4, 7),
+                player.getZ() + random.nextInt(-radius, radius + 1), true);
+    }
+
+    private static void shuffleHotbar(ServerPlayer player) {
+        Inventory inventory = player.getInventory();
+        List<ItemStack> stacks = new ArrayList<>(9);
+        for (int slot = 0; slot < 9; slot++) stacks.add(inventory.getItem(slot).copy());
+        Collections.shuffle(stacks);
+        for (int slot = 0; slot < 9; slot++) inventory.setItem(slot, stacks.get(slot));
+        inventory.setChanged();
     }
 
     private static void rotateHotbar(ServerPlayer player) {
         Inventory inventory = player.getInventory();
         ItemStack last = inventory.getItem(8).copy();
-        for (int slot = 8; slot > 0; slot--) {
-            inventory.setItem(slot, inventory.getItem(slot - 1).copy());
-        }
+        for (int slot = 8; slot > 0; slot--) inventory.setItem(slot, inventory.getItem(slot - 1).copy());
         inventory.setItem(0, last);
         inventory.setChanged();
     }
 
-    private static void swapTwoHotbarSlots(ServerPlayer player) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        int first = random.nextInt(9);
-        int second = random.nextInt(9);
-        while (second == first) {
-            second = random.nextInt(9);
-        }
-
-        Inventory inventory = player.getInventory();
-        ItemStack firstStack = inventory.getItem(first).copy();
-        ItemStack secondStack = inventory.getItem(second).copy();
-        inventory.setItem(first, secondStack);
-        inventory.setItem(second, firstStack);
-        inventory.setChanged();
+    private static void swapHands(ServerPlayer player) {
+        ItemStack main = player.getMainHandItem().copy();
+        ItemStack off = player.getOffhandItem().copy();
+        player.setItemInHand(InteractionHand.MAIN_HAND, off);
+        player.setItemInHand(InteractionHand.OFF_HAND, main);
     }
 
     private static synchronized void hideHeldItem(ServerPlayer player) {
         ItemStack held = player.getMainHandItem();
         if (held.isEmpty()) {
-            sound(player, SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 0.8F, 1.4F);
+            sound(player, SoundEvents.ITEM_BREAK, SoundSource.PLAYERS, 1.0F, 0.6F);
             return;
         }
-
         ItemStack hidden = held.copy();
         player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
         PENDING_ITEMS.add(new PendingHeldItem(player.getUUID(), hidden, HELD_ITEM_RETURN_TICKS));
@@ -240,18 +283,13 @@ public final class MicroPrankEngine {
     }
 
     private static void restoreAllPendingItems(MinecraftServer server) {
-        for (PendingHeldItem pending : PENDING_ITEMS) {
-            restoreItem(server, pending);
-        }
+        for (PendingHeldItem pending : PENDING_ITEMS) restoreItem(server, pending);
         PENDING_ITEMS.clear();
     }
 
     private static void restoreItem(MinecraftServer server, PendingHeldItem pending) {
         ServerPlayer player = server.getPlayerList().getPlayer(pending.playerId);
-        if (player == null) {
-            return;
-        }
-
+        if (player == null) return;
         if (player.getMainHandItem().isEmpty()) {
             player.setItemInHand(InteractionHand.MAIN_HAND, pending.stack.copy());
         } else if (!player.getInventory().add(pending.stack.copy())) {
@@ -260,63 +298,34 @@ public final class MicroPrankEngine {
     }
 
     private static void scheduleNextPrank() {
-        ticksUntilNextPrank = ThreadLocalRandom.current().nextInt(
-                MIN_DELAY_SECONDS,
-                MAX_DELAY_SECONDS + 1
-        ) * TICKS_PER_SECOND;
+        ticksUntilNextPrank = ThreadLocalRandom.current().nextInt(MIN_DELAY_SECONDS, MAX_DELAY_SECONDS + 1)
+                * TICKS_PER_SECOND;
     }
 
     public static synchronized int getSecondsUntilNextPrank() {
-        if (!active || ticksUntilNextPrank <= 0) {
-            return 0;
-        }
+        if (!active || ticksUntilNextPrank <= 0) return 0;
         return (ticksUntilNextPrank + TICKS_PER_SECOND - 1) / TICKS_PER_SECOND;
     }
 
     public static synchronized String getStatusText() {
-        if (!active) {
-            return "микроподлянки остановлены";
-        }
+        if (!active) return "микроподлянки остановлены";
         int totalSeconds = getSecondsUntilNextPrank();
         return String.format("следующая микроподлянка примерно через %d:%02d", totalSeconds / 60, totalSeconds % 60);
     }
 
-    public static int getRegisteredPrankCount() {
-        return PRANKS.size();
-    }
+    public static int getRegisteredPrankCount() { return PRANKS.size(); }
 
     private enum PrankType {
-        CREEPER_HISS,
-        TNT_FUSE,
-        ANVIL_CRASH,
-        THUNDER_CLAP,
-        GHAST_SCREAM,
-        ENDERMAN_STARE,
-        PHANTOM_SWOOP,
-        WARDEN_HEARTBEAT,
-        DARK_BLINK,
-        BLIND_BLINK,
-        NAUSEA_WAVE,
-        LEVITATION_BUMP,
-        SLOW_FEET,
-        WEAK_HANDS,
-        GLOW_MARK,
-        HUNGER_NIBBLE,
-        RANDOM_PUSH,
-        HOTBAR_ROTATE,
-        HELD_ITEM_VANISH,
-        FAKE_ITEM_BREAK,
-        PORTAL_WHISPER,
-        FIRE_TICKLE,
-        EXPERIENCE_FAKEOUT,
-        INVENTORY_JIGGLE
+        SCREAMER_RAGE, SCREAMER_VOID, TNT_BEHIND, CREEPER_AMBUSH, SILVERFISH_SWARM, LIGHTNING_STRIKE,
+        RANDOM_TELEPORT, VIOLENT_LAUNCH, DOWNWARD_SLAM, LEVITATION_DROP, HELD_ITEM_VANISH, HOTBAR_SHUFFLE,
+        HAND_SWAP, HUNGER_CRASH, XP_DRAIN, FIRE_BURST, DARKNESS_NAUSEA, WITHER_TOUCH, SLOW_TRAP,
+        PHANTOM_ATTACK, ZOMBIE_RING, ENDERMAN_VISIT, INVENTORY_JIGGLE, CREEPER_PANIC
     }
 
     private static final class PendingHeldItem {
         private final UUID playerId;
         private final ItemStack stack;
         private int ticksRemaining;
-
         private PendingHeldItem(UUID playerId, ItemStack stack, int ticksRemaining) {
             this.playerId = playerId;
             this.stack = stack;
