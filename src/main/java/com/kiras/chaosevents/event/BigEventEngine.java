@@ -38,6 +38,7 @@ public final class BigEventEngine {
         events.add(ExternalDisasterEvent.METEOR_SHOWER);
         events.add(AcceleratedTimeEvent.INSTANCE);
         events.add(SpatialSwapEvent.INSTANCE);
+        events.addAll(List.of(ExpandedChaosEvent.values()));
         EVENTS = List.copyOf(events);
     }
 
@@ -170,7 +171,7 @@ public final class BigEventEngine {
     private static void announceEventStart(MinecraftServer server, ChaosEvent event, int durationTicks) {
         int ticksPerSecond = Math.max(1, event.timerTicksPerSecond());
         int durationSeconds = Math.max(1, durationTicks / ticksPerSecond);
-        String description = descriptionFor(event.id());
+        String description = event.description().isBlank() ? descriptionFor(event.id()) : event.description();
 
         Component title = Component.literal(event.displayName())
                 .withStyle(ChatFormatting.RED, ChatFormatting.BOLD);
