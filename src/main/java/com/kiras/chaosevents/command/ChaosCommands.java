@@ -24,6 +24,9 @@ public final class ChaosCommands {
                         .then(Commands.literal("resume").executes(context -> resume(context.getSource())))
                         .then(Commands.literal("stop").executes(context -> stop(context.getSource())))
                         .then(Commands.literal("status").executes(context -> status(context.getSource())))
+                        .then(Commands.literal("skip")
+                                .executes(context -> skipBig(context.getSource()))
+                                .then(Commands.literal("big").executes(context -> skipBig(context.getSource()))))
                         .then(Commands.literal("test")
                                 .then(Commands.literal("big").executes(context -> testBig(context.getSource())))
                                 .then(Commands.literal("speed").executes(context -> testSpeed(context.getSource())))
@@ -81,6 +84,15 @@ public final class ChaosCommands {
                 + "; микроподлянок: " + MicroPrankEngine.getRegisteredPrankCount()
                 + "; вопросов: " + TriviaEngine.getQuestionCount();
         source.sendSuccess(() -> Component.literal(text), false);
+        return 1;
+    }
+
+    private static int skipBig(CommandSourceStack source) {
+        if (!ChaosSessionManager.skipBigEvent(source.getServer())) {
+            source.sendFailure(Component.literal(PREFIX + "сейчас нет активного большого ивента для пропуска."));
+            return 0;
+        }
+        broadcast(source.getServer(), "Текущий большой ивент пропущен. Начался обычный перерыв перед следующим.");
         return 1;
     }
 

@@ -83,6 +83,10 @@ public final class ChaosSessionManager {
         return state == State.RUNNING && BigEventEngine.forceRandomEvent(server);
     }
 
+    public static synchronized boolean skipBigEvent(MinecraftServer server) {
+        return state != State.STOPPED && BigEventEngine.skipActiveEvent(server);
+    }
+
     public static synchronized boolean forceSpatialEvent(MinecraftServer server) {
         return state == State.RUNNING && BigEventEngine.forceSpatialEvent(server);
     }
