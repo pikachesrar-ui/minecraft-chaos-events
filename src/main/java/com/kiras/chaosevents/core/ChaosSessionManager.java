@@ -21,6 +21,7 @@ public final class ChaosSessionManager {
         BigEventEngine.startSession();
         MicroPrankEngine.startSession();
         TriviaEngine.startSession();
+        SpatialSwapManager.startSession();
         return true;
     }
 
@@ -43,7 +44,7 @@ public final class ChaosSessionManager {
         BigEventEngine.stopSession(server);
         MicroPrankEngine.stopSession(server);
         TriviaEngine.stopSession();
-        SpatialSwapManager.stopEvent(server);
+        SpatialSwapManager.stopSession(server);
         state = State.STOPPED;
         return true;
     }
@@ -61,7 +62,7 @@ public final class ChaosSessionManager {
             BigEventEngine.stopSession(server);
             MicroPrankEngine.stopSession(server);
             TriviaEngine.stopSession();
-            SpatialSwapManager.stopEvent(server);
+            SpatialSwapManager.stopSession(server);
         }
         state = State.STOPPED;
     }
@@ -74,6 +75,7 @@ public final class ChaosSessionManager {
 
         BigEventEngine.tick(server);
         if (AcceleratedTimeEvent.INSTANCE.shouldTickAuxiliarySystems()) {
+            SpatialSwapManager.tickSession(server);
             MicroPrankEngine.tick(server);
             TriviaEngine.tick(server);
         }
