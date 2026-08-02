@@ -3,6 +3,7 @@ package com.kiras.chaosevents.client;
 import com.kiras.chaosevents.ChaosEvents;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -15,16 +16,16 @@ public final class ScreamerScreen extends Screen {
 
     private final Screen previousScreen;
     private final int slot;
-    private final ResourceLocation soundId;
+    private final SoundInstance soundInstance;
     private int ticksRemaining;
     private boolean closing;
 
-    public ScreamerScreen(Screen previousScreen, int slot, int ticksRemaining, ResourceLocation soundId) {
+    public ScreamerScreen(Screen previousScreen, int slot, int ticksRemaining, SoundInstance soundInstance) {
         super(Component.empty());
         this.previousScreen = previousScreen;
         this.slot = slot;
         this.ticksRemaining = Math.max(1, Math.min(MAX_DURATION_TICKS, ticksRemaining));
-        this.soundId = soundId;
+        this.soundInstance = soundInstance;
     }
 
     @Override
@@ -63,14 +64,14 @@ public final class ScreamerScreen extends Screen {
             return;
         }
         closing = true;
-        minecraft.getSoundManager().stop(soundId, null);
+        minecraft.getSoundManager().stop(soundInstance);
         minecraft.setScreen(previousScreen);
     }
 
     @Override
     public void removed() {
         if (!closing && minecraft != null) {
-            minecraft.getSoundManager().stop(soundId, null);
+            minecraft.getSoundManager().stop(soundInstance);
         }
         super.removed();
     }
