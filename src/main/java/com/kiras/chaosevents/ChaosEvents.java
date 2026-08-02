@@ -4,6 +4,7 @@ import com.kiras.chaosevents.command.ChaosCommands;
 import com.kiras.chaosevents.core.ChaosSessionManager;
 import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
+import com.kiras.chaosevents.event.ExpandedChaosEvent;
 import com.kiras.chaosevents.network.ChaosNetwork;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
 import com.kiras.chaosevents.registry.ModItems;
@@ -73,6 +74,7 @@ public final class ChaosEvents {
     public void onBlockBroken(BlockEvent.BreakEvent event) {
         if (event.getPlayer() instanceof ServerPlayer player && player.getServer() != null) {
             SpatialSwapManager.onBlockBroken(player.getServer(), player, event.getState());
+            ExpandedChaosEvent.onBlockBroken(player, event.getPos());
         }
     }
 
