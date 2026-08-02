@@ -20,11 +20,14 @@ import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.levelgen.Heightmap;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -38,6 +41,7 @@ public final class MicroPrankEngine {
     private static final String PREFIX = "[Микроподлянка] ";
 
     private static final List<PrankType> PRANKS = List.of(PrankType.values());
+    private static final Set<PrankType> USED_PRANKS = EnumSet.noneOf(PrankType.class);
     private static final List<PendingHeldItem> PENDING_ITEMS = new ArrayList<>();
 
     private static boolean active;
@@ -51,6 +55,7 @@ public final class MicroPrankEngine {
     public static synchronized void startSession() {
         active = true;
         PENDING_ITEMS.clear();
+        USED_PRANKS.clear();
         SafeTntPrank.clear();
         ExpandedPrankEffects.reset();
         lastTarget = null;
@@ -84,12 +89,14 @@ public final class MicroPrankEngine {
         lastTarget = null;
         consecutiveTargetCount = 0;
         lastPrank = null;
+        USED_PRANKS.clear();
     }
 
     public static synchronized void reset() {
         active = false;
         ticksUntilNextPrank = 0;
         PENDING_ITEMS.clear();
+        USED_PRANKS.clear();
         SafeTntPrank.clear();
         ExpandedPrankEffects.reset();
         lastTarget = null;
@@ -130,14 +137,23 @@ public final class MicroPrankEngine {
     private static synchronized PrankType choosePrank() {
         if (PRANKS.size() == 1) {
             lastPrank = PRANKS.getFirst();
+            USED_PRANKS.add(lastPrank);
             return lastPrank;
         }
 
-        PrankType selected;
-        do {
-            selected = PRANKS.get(ThreadLocalRandom.current().nextInt(PRANKS.size()));
-        } while (selected == lastPrank);
+        boolean newCycle = USED_PRANKS.size() >= PRANKS.size();
+        if (newCycle) USED_PRANKS.clear();
 
+        List<PrankType> candidates = PRANKS.stream()
+                .filter(prank -> !USED_PRANKS.contains(prank))
+                .filter(prank -> !newCycle || prank != lastPrank)
+                .toList();
+        if (candidates.isEmpty()) {
+            candidates = PRANKS.stream().filter(prank -> !USED_PRANKS.contains(prank)).toList();
+        }
+
+        PrankType selected = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+        USED_PRANKS.add(selected);
         lastPrank = selected;
         return selected;
     }
@@ -287,9 +303,33 @@ public final class MicroPrankEngine {
 
     private static void randomTeleport(ServerPlayer player, int radius) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        player.randomTeleport(player.getX() + random.nextInt(-radius, radius + 1),
-                player.getY() + random.nextInt(-4, 7),
-                player.getZ() + random.nextInt(-radius, radius + 1), true);
+        double originX = player.getX();
+        double originY = player.getY();
+        double originZ = player.getZ();
+
+        for (int attempt = 0; attempt < 32; attempt++) {
+            int offsetX = random.nextInt(-radius, radius + 1);
+            int offsetZ = random.nextInt(-radius, radius + 1);
+            if (Math.abs(offsetX) < 4 && Math.abs(offsetZ) < 4) continue;
+
+            double targetY = Math.max(player.serverLevel().getMinBuildHeight() + 1,
+                    Math.min(player.serverLevel().getMaxBuildHeight() - 2,
+                            originY + random.nextInt(-8, 13)));
+            if (player.randomTeleport(originX + offsetX + 0.5, targetY,
+                    originZ + offsetZ + 0.5, true)) {
+                sound(player, SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
+                return;
+            }
+        }
+
+        ServerLevel level = player.serverLevel();
+        int targetX = (int) Math.floor(originX) + random.nextInt(-radius, radius + 1);
+        int targetZ = (int) Math.floor(originZ) + random.nextInt(-radius, radius + 1);
+        int targetY = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, targetX, targetZ);
+        if (targetY > level.getMinBuildHeight() && targetY < level.getMaxBuildHeight() - 1) {
+            player.teleportTo(targetX + 0.5, targetY, targetZ + 0.5);
+            sound(player, SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
+        }
     }
 
     private static void shuffleHotbar(ServerPlayer player) {
