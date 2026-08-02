@@ -21,6 +21,11 @@ public interface ChaosEvent {
 
     void stop(MinecraftServer server);
 
+    /** Optional event-owned text used by announcements. */
+    default String description() {
+        return "";
+    }
+
     /** Called when the whole Chaos Events session is paused. */
     default void pause(MinecraftServer server) {
     }

@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Independent hidden timer for twenty-four substantial pranks aimed at one random player. */
+/** Independent hidden timer for substantial pranks aimed at one random player. */
 public final class MicroPrankEngine {
     private static final int TICKS_PER_SECOND = 20;
     private static final int MIN_DELAY_SECONDS = 60;
@@ -52,6 +52,7 @@ public final class MicroPrankEngine {
         active = true;
         PENDING_ITEMS.clear();
         SafeTntPrank.clear();
+        ExpandedPrankEffects.reset();
         lastTarget = null;
         consecutiveTargetCount = 0;
         lastPrank = null;
@@ -62,6 +63,7 @@ public final class MicroPrankEngine {
         synchronized (MicroPrankEngine.class) {
             if (!active) return;
             SafeTntPrank.tick(server);
+            ExpandedPrankEffects.tick(server);
             tickPendingItems(server);
             if (ticksUntilNextPrank > 0) ticksUntilNextPrank--;
             if (ticksUntilNextPrank > 0) return;
@@ -76,6 +78,7 @@ public final class MicroPrankEngine {
     public static synchronized void stopSession(MinecraftServer server) {
         restoreAllPendingItems(server);
         SafeTntPrank.clear();
+        ExpandedPrankEffects.clear(server);
         active = false;
         ticksUntilNextPrank = 0;
         lastTarget = null;
@@ -88,6 +91,7 @@ public final class MicroPrankEngine {
         ticksUntilNextPrank = 0;
         PENDING_ITEMS.clear();
         SafeTntPrank.clear();
+        ExpandedPrankEffects.reset();
         lastTarget = null;
         consecutiveTargetCount = 0;
         lastPrank = null;
@@ -220,6 +224,23 @@ public final class MicroPrankEngine {
                 effect(player, MobEffects.BLINDNESS, 55, 0);
                 player.setDeltaMovement(player.getDeltaMovement().add(0.0, 0.8, 0.0));
             }
+            case FAKE_TELEPORT -> ExpandedPrankEffects.fakeTeleport(player, false);
+            case FAKE_FAKE_TELEPORT -> ExpandedPrankEffects.fakeTeleport(player, true);
+            case HAUNTED_CHESTS -> ExpandedPrankEffects.hauntedContainers(player);
+            case COBWEB_SNARE -> ExpandedPrankEffects.cobwebSnare(player);
+            case DROP_HAND_ITEM -> ExpandedPrankEffects.dropHeldItem(player);
+            case MLG_GIFT -> ExpandedPrankEffects.giveWaterBucket(player);
+            case RANDOM_ORE_GIFT -> ExpandedPrankEffects.giveRandomOre(player);
+            case HELD_ITEM_REPAIR -> ExpandedPrankEffects.repairHeldItem(player);
+            case HELD_ITEM_RUST -> ExpandedPrankEffects.damageHeldItem(player);
+            case FORCED_MOUNT -> ExpandedPrankEffects.forceMount(player);
+            case RAINBOW_SHEEP_VISIT -> ExpandedPrankEffects.rainbowSheep(player);
+            case XP_BURST -> ExpandedPrankEffects.experienceBurst(player);
+            case ENTITY_FLING -> ExpandedPrankEffects.flingNearbyEntities(player);
+            case ENTITY_WARP -> ExpandedPrankEffects.warpNearbyEntities(player);
+            case INVISIBLE_PLAYER -> ExpandedPrankEffects.invisiblePlayer(player);
+            case ONE_PUNCH -> ExpandedPrankEffects.onePunch(player);
+            case TOTAL_HEAL -> ExpandedPrankEffects.totalHeal(player);
         }
     }
 
@@ -375,7 +396,24 @@ public final class MicroPrankEngine {
         ZOMBIE_RING("Кольцо зомби", "игрока окружили зомби"),
         ENDERMAN_VISIT("Визит эндерменов", "рядом появились эндермены"),
         INVENTORY_JIGGLE("Инвентарная встряска", "хотбар и руки перемешались"),
-        CREEPER_PANIC("Крипер-паника", "раздалось шипение и экран ослеп");
+        CREEPER_PANIC("Крипер-паника", "раздалось шипение и экран ослеп"),
+        FAKE_TELEPORT("Фальшивый телепорт", "игрок на несколько секунд оказался в невозможном месте"),
+        FAKE_FAKE_TELEPORT("Двойной обман", "возвращение после телепорта оказалось неточным"),
+        HAUNTED_CHESTS("Голодные сундуки", "вокруг начали хлопать невидимые сундуки"),
+        COBWEB_SNARE("Паутинный капкан", "рядом возникла временная паутина"),
+        DROP_HAND_ITEM("Слабая хватка", "предмет выпал из основной руки"),
+        MLG_GIFT("Ведро спасения", "игрок неожиданно получил ведро воды"),
+        RANDOM_ORE_GIFT("Случайная руда", "игрок получил немного случайного сырья"),
+        HELD_ITEM_REPAIR("Чудесный ремонт", "предмет в руке частично восстановился"),
+        HELD_ITEM_RUST("Внезапная ржавчина", "предмет в руке потерял часть прочности"),
+        FORCED_MOUNT("Незапланированная поездка", "игрок оказался верхом на лошади"),
+        RAINBOW_SHEEP_VISIT("Радужный гость", "рядом появилась разноцветная овца"),
+        XP_BURST("Всплеск опыта", "вокруг игрока появились сферы опыта"),
+        ENTITY_FLING("Подброс окружения", "ближайшие сущности разлетелись вверх"),
+        ENTITY_WARP("Сбор окружения", "ближайшие сущности переместились к игроку"),
+        INVISIBLE_PLAYER("Исчезновение", "игрок временно стал невидимым"),
+        ONE_PUNCH("Один мощный удар", "игрок ненадолго получил огромную силу"),
+        TOTAL_HEAL("Неожиданная помощь", "здоровье и голод полностью восстановились");
 
         private final String displayName;
         private final String description;
