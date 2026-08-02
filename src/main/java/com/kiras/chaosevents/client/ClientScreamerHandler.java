@@ -4,6 +4,8 @@ import com.kiras.chaosevents.ChaosEvents;
 import com.kiras.chaosevents.network.ScreamerPayload;
 import com.kiras.chaosevents.registry.ModSounds;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -40,7 +42,8 @@ public final class ClientScreamerHandler {
             pitch = 0.8F;
         }
 
-        minecraft.player.playSound(sound, 2.0F, pitch);
+        SoundInstance soundInstance = SimpleSoundInstance.forUI(sound, pitch, 2.0F);
+        minecraft.getSoundManager().play(soundInstance);
 
         int durationTicks = Math.max(
                 MIN_DURATION_TICKS,
@@ -50,7 +53,7 @@ public final class ClientScreamerHandler {
                 minecraft.screen,
                 slot,
                 durationTicks,
-                sound.getLocation()
+                soundInstance
         ));
     }
 
