@@ -30,10 +30,13 @@ public final class BigEventEngine {
     static {
         List<ChaosEvent> events = new ArrayList<>();
         for (BuiltinChaosEvent event : BuiltinChaosEvent.values()) {
-            if (event != BuiltinChaosEvent.KINETIC_STORM && event != BuiltinChaosEvent.METEOR_BARRAGE) {
+            if (event != BuiltinChaosEvent.KINETIC_STORM
+                    && event != BuiltinChaosEvent.METEOR_BARRAGE
+                    && event != BuiltinChaosEvent.TOXIC_AIR) {
                 events.add(event);
             }
         }
+        events.add(SurfaceToxicAirEvent.INSTANCE);
         events.add(ExternalDisasterEvent.TORNADO);
         events.add(ExternalDisasterEvent.METEOR_SHOWER);
         events.add(AcceleratedTimeEvent.INSTANCE);
@@ -113,6 +116,14 @@ public final class BigEventEngine {
         }
         finishActiveEvent(server, false);
         startRandomEvent(server);
+        return true;
+    }
+
+    public static boolean skipActiveEvent(MinecraftServer server) {
+        synchronized (BigEventEngine.class) {
+            if (phase != Phase.ACTIVE || activeEvent == null) return false;
+        }
+        finishActiveEvent(server, false);
         return true;
     }
 
@@ -204,7 +215,7 @@ public final class BigEventEngine {
             case "total_darkness" -> "Тьма и слепота скрывают всё вокруг";
             case "hunters_mark" -> "Игроки отмечены и становятся целью мобов";
             case "life_drain" -> "Иссушение постепенно отнимает здоровье";
-            case "toxic_air" -> "Ядовитый воздух отравляет и дезориентирует";
+            case "toxic_air" -> "Ядовитый воздух действует только под открытым небом";
             case "famine" -> "Сытость быстро исчезает";
             case "skyhook" -> "Небо регулярно утягивает игроков вверх";
             case "chaos_roulette" -> "Проклятия постоянно меняются";
