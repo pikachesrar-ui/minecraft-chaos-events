@@ -13,17 +13,21 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Independent 6-12 minute trivia cycle with a 10 second answer window. */
+/** Independent 6-12 minute trivia cycle with a 15 second answer window. */
 public final class TriviaEngine {
     private static final int TICKS_PER_SECOND = 20;
     private static final int MIN_DELAY_SECONDS = 6 * 60;
     private static final int MAX_DELAY_SECONDS = 12 * 60;
-    private static final int ANSWER_WINDOW_TICKS = 10 * TICKS_PER_SECOND;
+    private static final int ANSWER_WINDOW_TICKS = 15 * TICKS_PER_SECOND;
     private static final String PREFIX = "[Викторина] ";
     private static final List<TriviaQuestion> QUESTIONS = TriviaQuestionBank.QUESTIONS;
+    private static final Set<UUID> WRONG_ANSWER_PUNISHED = new HashSet<>();
 
     private static boolean active;
     private static TriviaQuestion currentQuestion;
@@ -36,6 +40,7 @@ public final class TriviaEngine {
     public static synchronized void startSession() {
         active = true;
         currentQuestion = null;
+        WRONG_ANSWER_PUNISHED.clear();
         scheduleNextQuestion();
     }
 
@@ -61,6 +66,7 @@ public final class TriviaEngine {
             } else {
                 timedOut = currentQuestion;
                 currentQuestion = null;
+                WRONG_ANSWER_PUNISHED.clear();
                 scheduleNextQuestion();
             }
         }
@@ -77,6 +83,7 @@ public final class TriviaEngine {
         active = false;
         currentQuestion = null;
         ticksRemaining = 0;
+        WRONG_ANSWER_PUNISHED.clear();
     }
 
     public static synchronized void reset() {
@@ -84,6 +91,7 @@ public final class TriviaEngine {
         currentQuestion = null;
         ticksRemaining = 0;
         lastQuestionIndex = -1;
+        WRONG_ANSWER_PUNISHED.clear();
     }
 
     public static boolean forceQuestion(MinecraftServer server) {
@@ -92,26 +100,52 @@ public final class TriviaEngine {
                 return false;
             }
             currentQuestion = null;
+            WRONG_ANSWER_PUNISHED.clear();
         }
         beginRandomQuestion(server);
         return true;
     }
 
-    /** Returns true only for the first correct chat message, so it can be hidden from normal chat. */
+    /** Every chat message during a question is treated as an answer and hidden from normal chat. */
     public static boolean handleChatAnswer(MinecraftServer server, ServerPlayer player, String text) {
-        TriviaQuestion answered;
+        TriviaQuestion answered = null;
+        boolean punishWrongAnswer = false;
 
         synchronized (TriviaEngine.class) {
-            if (!active || currentQuestion == null || !currentQuestion.matches(text)) {
+            if (!active || currentQuestion == null) {
                 return false;
             }
-            answered = currentQuestion;
-            currentQuestion = null;
-            scheduleNextQuestion();
+
+            if (currentQuestion.matches(text)) {
+                answered = currentQuestion;
+                currentQuestion = null;
+                WRONG_ANSWER_PUNISHED.clear();
+                scheduleNextQuestion();
+            } else {
+                punishWrongAnswer = WRONG_ANSWER_PUNISHED.add(player.getUUID());
+            }
         }
 
-        reward(player);
-        broadcast(server, player.getGameProfile().getName() + " первым ответил правильно: " + answered.primaryAnswer());
+        if (answered == null) {
+            if (punishWrongAnswer) {
+                applyWrongAnswerPunishment(player);
+                player.sendSystemMessage(Component.literal(PREFIX
+                        + "Неверный ответ. Наказание применено, но можно попробовать ответить ещё раз."));
+            } else {
+                player.sendSystemMessage(Component.literal(PREFIX
+                        + "Неверно. Повторное наказание за этот вопрос не накладывается."));
+            }
+            return true;
+        }
+
+        RewardResult reward = reward(player);
+        Component result = Component.literal(PREFIX
+                        + player.getGameProfile().getName()
+                        + " первым ответил правильно: " + answered.primaryAnswer() + ". Награда: ")
+                .append(reward.item().getHoverName())
+                .append(Component.literal(" ×" + reward.item().getCount()
+                        + " и " + reward.experience() + " очк. опыта."));
+        broadcast(server, result);
         return true;
     }
 
@@ -132,17 +166,18 @@ public final class TriviaEngine {
             selected = QUESTIONS.get(index);
             currentQuestion = selected;
             ticksRemaining = ANSWER_WINDOW_TICKS;
+            WRONG_ANSWER_PUNISHED.clear();
         }
 
         broadcast(server, "Категория: " + selected.category());
         broadcast(server, selected.prompt());
-        broadcast(server, "Первый правильный ответ в чате за 10 секунд получит награду.");
+        broadcast(server, "Первый правильный ответ в чате за 15 секунд получит награду. Ошибка наказывается.");
         server.getPlayerList().getPlayers().forEach(player ->
                 player.serverLevel().playSound(null, player.blockPosition(), SoundEvents.NOTE_BLOCK_BELL.value(),
                         SoundSource.PLAYERS, 1.0F, 1.15F));
     }
 
-    private static void reward(ServerPlayer player) {
+    private static RewardResult reward(ServerPlayer player) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         ItemStack reward;
         int roll = random.nextInt(100);
@@ -164,9 +199,43 @@ public final class TriviaEngine {
         if (!player.getInventory().add(reward.copy())) {
             player.drop(reward.copy(), false);
         }
-        player.giveExperiencePoints(random.nextInt(3, 10));
+        int experience = random.nextInt(3, 10);
+        player.giveExperiencePoints(experience);
         player.serverLevel().playSound(null, player.blockPosition(), SoundEvents.PLAYER_LEVELUP,
                 SoundSource.PLAYERS, 0.9F, 1.25F);
+        return new RewardResult(reward.copy(), experience);
+    }
+
+    private static void applyWrongAnswerPunishment(ServerPlayer player) {
+        int punishment = ThreadLocalRandom.current().nextInt(6);
+        switch (punishment) {
+            case 0 -> {
+                effect(player, MobEffects.WITHER, 8 * TICKS_PER_SECOND, 1);
+                effect(player, MobEffects.WEAKNESS, 20 * TICKS_PER_SECOND, 2);
+            }
+            case 1 -> {
+                effect(player, MobEffects.DARKNESS, 20 * TICKS_PER_SECOND, 0);
+                effect(player, MobEffects.CONFUSION, 15 * TICKS_PER_SECOND, 1);
+                effect(player, MobEffects.MOVEMENT_SLOWDOWN, 15 * TICKS_PER_SECOND, 2);
+            }
+            case 2 -> {
+                player.getFoodData().addExhaustion(18.0F);
+                effect(player, MobEffects.HUNGER, 25 * TICKS_PER_SECOND, 3);
+            }
+            case 3 -> {
+                player.igniteForSeconds(6.0F);
+                effect(player, MobEffects.WEAKNESS, 20 * TICKS_PER_SECOND, 2);
+            }
+            case 4 -> {
+                effect(player, MobEffects.LEVITATION, 60, 4);
+                effect(player, MobEffects.SLOW_FALLING, 10 * TICKS_PER_SECOND, 0);
+            }
+            default -> {
+                player.giveExperiencePoints(-10);
+                effect(player, MobEffects.BLINDNESS, 12 * TICKS_PER_SECOND, 0);
+                effect(player, MobEffects.CONFUSION, 12 * TICKS_PER_SECOND, 1);
+            }
+        }
     }
 
     private static void applyHiddenGroupPunishment(MinecraftServer server) {
@@ -174,30 +243,36 @@ public final class TriviaEngine {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             switch (punishment) {
                 case 0 -> {
-                    effect(player, MobEffects.DARKNESS, 12 * TICKS_PER_SECOND, 0);
-                    effect(player, MobEffects.CONFUSION, 10 * TICKS_PER_SECOND, 0);
+                    effect(player, MobEffects.DARKNESS, 25 * TICKS_PER_SECOND, 0);
+                    effect(player, MobEffects.CONFUSION, 20 * TICKS_PER_SECOND, 1);
+                    effect(player, MobEffects.MOVEMENT_SLOWDOWN, 15 * TICKS_PER_SECOND, 2);
                 }
                 case 1 -> {
-                    effect(player, MobEffects.MOVEMENT_SLOWDOWN, 18 * TICKS_PER_SECOND, 2);
-                    effect(player, MobEffects.DIG_SLOWDOWN, 18 * TICKS_PER_SECOND, 1);
+                    effect(player, MobEffects.MOVEMENT_SLOWDOWN, 30 * TICKS_PER_SECOND, 3);
+                    effect(player, MobEffects.DIG_SLOWDOWN, 30 * TICKS_PER_SECOND, 2);
+                    effect(player, MobEffects.WEAKNESS, 30 * TICKS_PER_SECOND, 1);
                 }
                 case 2 -> {
-                    player.getFoodData().addExhaustion(12.0F);
-                    effect(player, MobEffects.HUNGER, 15 * TICKS_PER_SECOND, 2);
+                    player.getFoodData().setSaturation(0.0F);
+                    player.getFoodData().addExhaustion(24.0F);
+                    effect(player, MobEffects.HUNGER, 30 * TICKS_PER_SECOND, 3);
                 }
                 case 3 -> {
-                    effect(player, MobEffects.LEVITATION, 35, 2);
-                    effect(player, MobEffects.SLOW_FALLING, 8 * TICKS_PER_SECOND, 0);
+                    effect(player, MobEffects.LEVITATION, 70, 3);
+                    effect(player, MobEffects.SLOW_FALLING, 12 * TICKS_PER_SECOND, 0);
                 }
                 case 4 -> {
-                    player.igniteForSeconds(4.0F);
-                    effect(player, MobEffects.WEAKNESS, 15 * TICKS_PER_SECOND, 1);
+                    player.igniteForSeconds(7.0F);
+                    effect(player, MobEffects.WITHER, 8 * TICKS_PER_SECOND, 0);
+                    effect(player, MobEffects.WEAKNESS, 25 * TICKS_PER_SECOND, 2);
                 }
                 default -> {
                     ThreadLocalRandom random = ThreadLocalRandom.current();
-                    Vec3 push = new Vec3(random.nextDouble(-1.4, 1.4), 0.75, random.nextDouble(-1.4, 1.4));
+                    Vec3 push = new Vec3(random.nextDouble(-2.2, 2.2), 1.15,
+                            random.nextDouble(-2.2, 2.2));
                     player.setDeltaMovement(player.getDeltaMovement().add(push));
-                    effect(player, MobEffects.BLINDNESS, 8 * TICKS_PER_SECOND, 0);
+                    effect(player, MobEffects.BLINDNESS, 15 * TICKS_PER_SECOND, 0);
+                    effect(player, MobEffects.CONFUSION, 15 * TICKS_PER_SECOND, 1);
                 }
             }
         }
@@ -213,7 +288,10 @@ public final class TriviaEngine {
     }
 
     private static void broadcast(MinecraftServer server, String text) {
-        Component message = Component.literal(PREFIX + text);
+        broadcast(server, Component.literal(PREFIX + text));
+    }
+
+    private static void broadcast(MinecraftServer server, Component message) {
         server.getPlayerList().getPlayers().forEach(player -> player.sendSystemMessage(message));
     }
 
@@ -234,5 +312,8 @@ public final class TriviaEngine {
 
     private static String format(int seconds) {
         return String.format("%d:%02d", seconds / 60, seconds % 60);
+    }
+
+    private record RewardResult(ItemStack item, int experience) {
     }
 }
