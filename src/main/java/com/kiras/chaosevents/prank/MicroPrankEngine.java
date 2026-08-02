@@ -1,9 +1,7 @@
 package com.kiras.chaosevents.prank;
 
 import com.kiras.chaosevents.network.ChaosNetwork;
-import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -15,9 +13,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
-import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.LightningBolt;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -31,7 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Independent hidden timer for substantial pranks aimed at one random player. */
+/** Independent hidden timer for disruptive but nonlethal pranks aimed at one random player. */
 public final class MicroPrankEngine {
     private static final int TICKS_PER_SECOND = 20;
     private static final int MIN_DELAY_SECONDS = 60;
@@ -185,51 +180,32 @@ public final class MicroPrankEngine {
                 effect(player, MobEffects.CONFUSION, 100, 0);
             }
             case TNT_BEHIND -> SafeTntPrank.spawnBehind(player);
-            case CREEPER_AMBUSH -> spawnNear(player, EntityType.CREEPER, 2, 3);
-            case SILVERFISH_SWARM -> spawnNear(player, EntityType.SILVERFISH, 5, 4);
-            case LIGHTNING_STRIKE -> strikeLightning(player);
             case RANDOM_TELEPORT -> randomTeleport(player, 18);
-            case VIOLENT_LAUNCH -> player.setDeltaMovement(player.getDeltaMovement().add(
-                    ThreadLocalRandom.current().nextDouble(-1.2, 1.2), 1.75,
-                    ThreadLocalRandom.current().nextDouble(-1.2, 1.2)));
-            case DOWNWARD_SLAM -> player.setDeltaMovement(player.getDeltaMovement().add(0.0, -2.2, 0.0));
             case LEVITATION_DROP -> {
                 effect(player, MobEffects.LEVITATION, 50, 3);
-                effect(player, MobEffects.SLOW_FALLING, 140, 0);
+                effect(player, MobEffects.SLOW_FALLING, 160, 0);
+                effect(player, MobEffects.DAMAGE_RESISTANCE, 160, 4);
             }
             case HELD_ITEM_VANISH -> hideHeldItem(player);
             case HOTBAR_SHUFFLE -> shuffleHotbar(player);
             case HAND_SWAP -> swapHands(player);
             case HUNGER_CRASH -> {
-                player.getFoodData().addExhaustion(16.0F);
-                effect(player, MobEffects.HUNGER, 180, 3);
+                int food = player.getFoodData().getFoodLevel();
+                player.getFoodData().setFoodLevel(Math.max(6, food - 8));
+                player.getFoodData().setSaturation(0.0F);
+                effect(player, MobEffects.WEAKNESS, 120, 0);
             }
             case XP_DRAIN -> {
                 player.giveExperiencePoints(-7);
                 sound(player, SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 1.0F, 0.35F);
             }
-            case FIRE_BURST -> {
-                player.igniteForSeconds(6.0F);
-                player.serverLevel().sendParticles(ParticleTypes.FLAME, player.getX(), player.getY() + 1.0,
-                        player.getZ(), 45, 0.8, 1.0, 0.8, 0.1);
-            }
             case DARKNESS_NAUSEA -> {
                 effect(player, MobEffects.DARKNESS, 180, 0);
                 effect(player, MobEffects.CONFUSION, 180, 1);
             }
-            case WITHER_TOUCH -> {
-                effect(player, MobEffects.WITHER, 100, 1);
-                effect(player, MobEffects.WEAKNESS, 180, 1);
-            }
             case SLOW_TRAP -> {
                 effect(player, MobEffects.MOVEMENT_SLOWDOWN, 200, 4);
                 effect(player, MobEffects.DIG_SLOWDOWN, 200, 3);
-            }
-            case PHANTOM_ATTACK -> spawnNear(player, EntityType.PHANTOM, 2, 7);
-            case ZOMBIE_RING -> spawnNear(player, EntityType.ZOMBIE, 4, 5);
-            case ENDERMAN_VISIT -> {
-                spawnNear(player, EntityType.ENDERMAN, 2, 5);
-                sound(player, SoundEvents.ENDERMAN_STARE, SoundSource.HOSTILE, 1.2F, 0.65F);
             }
             case INVENTORY_JIGGLE -> {
                 rotateHotbar(player);
@@ -238,7 +214,7 @@ public final class MicroPrankEngine {
             case CREEPER_PANIC -> {
                 sound(player, SoundEvents.CREEPER_PRIMED, SoundSource.HOSTILE, 1.5F, 0.75F);
                 effect(player, MobEffects.BLINDNESS, 55, 0);
-                player.setDeltaMovement(player.getDeltaMovement().add(0.0, 0.8, 0.0));
+                effect(player, MobEffects.CONFUSION, 70, 0);
             }
             case FAKE_TELEPORT -> ExpandedPrankEffects.fakeTeleport(player, false);
             case FAKE_FAKE_TELEPORT -> ExpandedPrankEffects.fakeTeleport(player, true);
@@ -253,9 +229,7 @@ public final class MicroPrankEngine {
             case RAINBOW_SHEEP_VISIT -> ExpandedPrankEffects.rainbowSheep(player);
             case XP_BURST -> ExpandedPrankEffects.experienceBurst(player);
             case ENTITY_FLING -> ExpandedPrankEffects.flingNearbyEntities(player);
-            case ENTITY_WARP -> ExpandedPrankEffects.warpNearbyEntities(player);
             case INVISIBLE_PLAYER -> ExpandedPrankEffects.invisiblePlayer(player);
-            case ONE_PUNCH -> ExpandedPrankEffects.onePunch(player);
             case TOTAL_HEAL -> ExpandedPrankEffects.totalHeal(player);
         }
     }
@@ -270,7 +244,8 @@ public final class MicroPrankEngine {
 
     private static void sound(ServerPlayer player, SoundEvent sound, SoundSource source, float volume, float pitch) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        player.serverLevel().playSound(null, player.blockPosition().offset(random.nextInt(-3, 4), 0, random.nextInt(-3, 4)),
+        player.serverLevel().playSound(null,
+                player.blockPosition().offset(random.nextInt(-3, 4), 0, random.nextInt(-3, 4)),
                 sound, source, volume, pitch);
     }
 
@@ -278,34 +253,13 @@ public final class MicroPrankEngine {
         player.addEffect(new MobEffectInstance(effect, duration, amplifier, false, false, true));
     }
 
-    private static void strikeLightning(ServerPlayer player) {
-        LightningBolt lightning = EntityType.LIGHTNING_BOLT.create(player.serverLevel());
-        if (lightning == null) return;
-        lightning.moveTo(player.getX(), player.getY(), player.getZ());
-        player.serverLevel().addFreshEntity(lightning);
-    }
-
-    private static void spawnNear(ServerPlayer player, EntityType<? extends Mob> type, int count, int radius) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        ServerLevel level = player.serverLevel();
-        BlockPos base = player.blockPosition();
-        for (int i = 0; i < count; i++) {
-            Mob mob = type.create(level);
-            if (mob == null) continue;
-            mob.moveTo(base.getX() + 0.5 + random.nextInt(-radius, radius + 1),
-                    base.getY() + 1.0,
-                    base.getZ() + 0.5 + random.nextInt(-radius, radius + 1),
-                    random.nextFloat() * 360.0F, 0.0F);
-            mob.setPersistenceRequired();
-            level.addFreshEntity(mob);
-        }
-    }
-
     private static void randomTeleport(ServerPlayer player, int radius) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         double originX = player.getX();
         double originY = player.getY();
         double originZ = player.getZ();
+
+        grantTeleportSafety(player);
 
         for (int attempt = 0; attempt < 32; attempt++) {
             int offsetX = random.nextInt(-radius, radius + 1);
@@ -330,6 +284,12 @@ public final class MicroPrankEngine {
             player.teleportTo(targetX + 0.5, targetY, targetZ + 0.5);
             sound(player, SoundEvents.ENDERMAN_TELEPORT, SoundSource.PLAYERS, 1.0F, 1.0F);
         }
+    }
+
+    private static void grantTeleportSafety(ServerPlayer player) {
+        effect(player, MobEffects.DAMAGE_RESISTANCE, 8 * TICKS_PER_SECOND, 4);
+        effect(player, MobEffects.FIRE_RESISTANCE, 8 * TICKS_PER_SECOND, 0);
+        effect(player, MobEffects.SLOW_FALLING, 8 * TICKS_PER_SECOND, 0);
     }
 
     private static void shuffleHotbar(ServerPlayer player) {
@@ -407,7 +367,8 @@ public final class MicroPrankEngine {
     public static synchronized String getStatusText() {
         if (!active) return "микроподлянки остановлены";
         int totalSeconds = getSecondsUntilNextPrank();
-        return String.format("следующая микроподлянка примерно через %d:%02d", totalSeconds / 60, totalSeconds % 60);
+        return String.format("следующая микроподлянка примерно через %d:%02d",
+                totalSeconds / 60, totalSeconds % 60);
     }
 
     public static int getRegisteredPrankCount() { return PRANKS.size(); }
@@ -415,28 +376,18 @@ public final class MicroPrankEngine {
     private enum PrankType {
         SCREAMER_RAGE("Яростный скример", "на экране внезапно появился скример"),
         SCREAMER_VOID("Скример Бездны", "Бездна резко захватила экран"),
-        TNT_BEHIND("TNT за спиной", "за спиной появился безопасный TNT"),
-        CREEPER_AMBUSH("Засада криперов", "рядом появились два крипера"),
-        SILVERFISH_SWARM("Рой чешуйниц", "вокруг появился рой чешуйниц"),
-        LIGHTNING_STRIKE("Удар молнии", "в игрока ударила молния"),
-        RANDOM_TELEPORT("Случайный телепорт", "игрока переместило в случайную точку"),
-        VIOLENT_LAUNCH("Сильный толчок", "игрока резко подбросило"),
-        DOWNWARD_SLAM("Удар вниз", "игрока резко потянуло к земле"),
-        LEVITATION_DROP("Левитационный сбой", "игрок взлетел и начал падать"),
+        TNT_BEHIND("TNT за спиной", "за спиной появился полностью безопасный TNT"),
+        RANDOM_TELEPORT("Случайный телепорт", "игрока переместило в случайную безопасную точку"),
+        LEVITATION_DROP("Левитационный сбой", "игрок взлетел с защитой от падения"),
         HELD_ITEM_VANISH("Исчезнувший предмет", "предмет в руке временно пропал"),
         HOTBAR_SHUFFLE("Перемешанный хотбар", "слоты хотбара перемешались"),
         HAND_SWAP("Обмен рук", "предметы в руках поменялись местами"),
-        HUNGER_CRASH("Приступ голода", "сытость резко уменьшилась"),
+        HUNGER_CRASH("Приступ голода", "сытость уменьшилась, но не до уровня голодания"),
         XP_DRAIN("Кража опыта", "часть опыта исчезла"),
-        FIRE_BURST("Вспышка огня", "игрок внезапно загорелся"),
         DARKNESS_NAUSEA("Тьма и тошнота", "игрок потерял ориентацию"),
-        WITHER_TOUCH("Касание иссушения", "на игрока наложилось иссушение"),
         SLOW_TRAP("Ловушка замедления", "движение и добыча сильно замедлились"),
-        PHANTOM_ATTACK("Атака фантомов", "рядом появились фантомы"),
-        ZOMBIE_RING("Кольцо зомби", "игрока окружили зомби"),
-        ENDERMAN_VISIT("Визит эндерменов", "рядом появились эндермены"),
         INVENTORY_JIGGLE("Инвентарная встряска", "хотбар и руки перемешались"),
-        CREEPER_PANIC("Крипер-паника", "раздалось шипение и экран ослеп"),
+        CREEPER_PANIC("Крипер-паника", "раздалось безопасное шипение и экран ослеп"),
         FAKE_TELEPORT("Фальшивый телепорт", "игрок на несколько секунд оказался в невозможном месте"),
         FAKE_FAKE_TELEPORT("Двойной обман", "возвращение после телепорта оказалось неточным"),
         HAUNTED_CHESTS("Голодные сундуки", "вокруг начали хлопать невидимые сундуки"),
@@ -450,9 +401,7 @@ public final class MicroPrankEngine {
         RAINBOW_SHEEP_VISIT("Радужный гость", "рядом появилась разноцветная овца"),
         XP_BURST("Всплеск опыта", "вокруг игрока появились сферы опыта"),
         ENTITY_FLING("Подброс окружения", "ближайшие сущности разлетелись вверх"),
-        ENTITY_WARP("Сбор окружения", "ближайшие сущности переместились к игроку"),
         INVISIBLE_PLAYER("Исчезновение", "игрок временно стал невидимым"),
-        ONE_PUNCH("Один мощный удар", "игрок ненадолго получил огромную силу"),
         TOTAL_HEAL("Неожиданная помощь", "здоровье и голод полностью восстановились");
 
         private final String displayName;

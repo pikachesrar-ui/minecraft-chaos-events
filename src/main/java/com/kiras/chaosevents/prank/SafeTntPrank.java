@@ -14,17 +14,14 @@ import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Visual TNT prank with a manual non-destructive blast.
- * It cannot destroy blocks and deals only one to two hearts to the selected player.
+ * It cannot destroy blocks, damage entities or apply knockback.
  */
 final class SafeTntPrank {
     private static final int MANUAL_FUSE_TICKS = 55;
     private static final int VANILLA_FUSE_SAFETY_TICKS = 20 * 60 * 60;
-    private static final double DAMAGE_RADIUS_SQUARED = 6.0 * 6.0;
     private static final List<PendingTnt> PENDING = new ArrayList<>();
 
     private SafeTntPrank() {
@@ -41,7 +38,7 @@ final class SafeTntPrank {
         tnt.moveTo(behind.x, behind.y + 0.2, behind.z);
         tnt.setFuse(VANILLA_FUSE_SAFETY_TICKS);
         level.addFreshEntity(tnt);
-        PENDING.add(new PendingTnt(tnt, player.getUUID(), MANUAL_FUSE_TICKS));
+        PENDING.add(new PendingTnt(tnt, MANUAL_FUSE_TICKS));
 
         level.playSound(null, tnt.blockPosition(), SoundEvents.TNT_PRIMED,
                 SoundSource.BLOCKS, 1.1F, 0.85F);
@@ -58,7 +55,7 @@ final class SafeTntPrank {
 
             pending.ticksRemaining--;
             if (pending.ticksRemaining <= 0) {
-                detonate(server, pending);
+                detonate(pending);
                 iterator.remove();
             }
         }
@@ -73,7 +70,7 @@ final class SafeTntPrank {
         PENDING.clear();
     }
 
-    private static void detonate(MinecraftServer server, PendingTnt pending) {
+    private static void detonate(PendingTnt pending) {
         PrimedTnt tnt = pending.tnt;
         if (!(tnt.level() instanceof ServerLevel level)) {
             tnt.discard();
@@ -89,30 +86,14 @@ final class SafeTntPrank {
                 1, 0.0, 0.0, 0.0, 0.0);
         level.playSound(null, BlockPos.containing(x, y, z), SoundEvents.GENERIC_EXPLODE.value(),
                 SoundSource.BLOCKS, 0.9F, 1.15F);
-
-        ServerPlayer target = server.getPlayerList().getPlayer(pending.targetId);
-        if (target == null || target.level() != level || target.distanceToSqr(x, y, z) > DAMAGE_RADIUS_SQUARED) {
-            return;
-        }
-
-        float damage = ThreadLocalRandom.current().nextBoolean() ? 2.0F : 4.0F;
-        target.hurt(target.damageSources().generic(), damage);
-
-        Vec3 away = target.position().subtract(new Vec3(x, y, z));
-        if (away.lengthSqr() > 0.001) {
-            Vec3 knockback = away.normalize().scale(0.45).add(0.0, 0.18, 0.0);
-            target.setDeltaMovement(target.getDeltaMovement().add(knockback));
-        }
     }
 
     private static final class PendingTnt {
         private final PrimedTnt tnt;
-        private final UUID targetId;
         private int ticksRemaining;
 
-        private PendingTnt(PrimedTnt tnt, UUID targetId, int ticksRemaining) {
+        private PendingTnt(PrimedTnt tnt, int ticksRemaining) {
             this.tnt = tnt;
-            this.targetId = targetId;
             this.ticksRemaining = ticksRemaining;
         }
     }
