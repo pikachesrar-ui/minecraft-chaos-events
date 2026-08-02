@@ -33,7 +33,7 @@ public enum SpatialSwapEvent implements ChaosEvent {
 
     @Override
     public void tick(MinecraftServer server, int elapsedTicks, int remainingTicks) {
-        SpatialSwapManager.tick(server);
+        SpatialSwapManager.tickEvent(server);
     }
 
     @Override

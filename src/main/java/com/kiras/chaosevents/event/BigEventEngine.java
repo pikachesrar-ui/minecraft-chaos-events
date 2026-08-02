@@ -6,11 +6,15 @@ import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
 import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.BossEvent;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** Owns the complete lifecycle: break -> event -> cleanup -> next break. */
@@ -22,7 +26,36 @@ public final class BigEventEngine {
     private static final int MAX_NORMAL_DURATION_SECONDS = 8 * 60;
     private static final int MIN_HARSH_DURATION_SECONDS = 3 * 60;
     private static final int MAX_HARSH_DURATION_SECONDS = 5 * 60;
+    private static final int MIN_MOB_WAVE_DURATION_SECONDS = 20;
+    private static final int MAX_MOB_WAVE_DURATION_SECONDS = 40;
     private static final String PREFIX = "[Chaos Events] ";
+
+    private static final Set<String> MOB_WAVE_EVENT_IDS = Set.of(
+            "hunters_mark",
+            "blood_moon",
+            "zombie_siege",
+            "skeleton_volley",
+            "spider_bloom",
+            "creeper_migration",
+            "blaze_swarm",
+            "magma_march",
+            "piglin_hunt",
+            "enderman_convergence",
+            "chicken_rain",
+            "rainbow_sheep",
+            "slime_overload",
+            "vex_assault",
+            "bee_swarm",
+            "silverfish_infestation",
+            "phantom_sky",
+            "random_creepers"
+    );
+
+    private static final ServerBossEvent EVENT_TIMER = new ServerBossEvent(
+            Component.literal("Chaos Events"),
+            BossEvent.BossBarColor.RED,
+            BossEvent.BossBarOverlay.PROGRESS
+    );
 
     public enum Phase { STOPPED, WAITING, ACTIVE }
 
@@ -45,9 +78,12 @@ public final class BigEventEngine {
         EVENTS = List.copyOf(events);
     }
 
+    private static final Set<String> USED_EVENT_IDS = new HashSet<>();
+
     private static Phase phase = Phase.STOPPED;
     private static ChaosEvent activeEvent;
     private static int ticksRemaining;
+    private static int activeDurationTicks;
     private static int elapsedTicks;
     private static String lastEventId;
 
@@ -56,7 +92,11 @@ public final class BigEventEngine {
     public static synchronized void startSession() {
         activeEvent = null;
         elapsedTicks = 0;
+        activeDurationTicks = 0;
+        lastEventId = null;
+        USED_EVENT_IDS.clear();
         phase = Phase.WAITING;
+        hideBossBar();
         scheduleBreak();
     }
 
@@ -81,7 +121,10 @@ public final class BigEventEngine {
             }
         }
 
-        if (eventToTick != null && !finishCurrentEvent) eventToTick.tick(server, elapsed, remaining);
+        if (eventToTick != null && !finishCurrentEvent) {
+            eventToTick.tick(server, elapsed, remaining);
+            updateBossBar(server);
+        }
         if (finishCurrentEvent) finishActiveEvent(server, true);
         else if (startNewEvent) startRandomEvent(server);
     }
@@ -90,8 +133,11 @@ public final class BigEventEngine {
         if (activeEvent != null) activeEvent.stop(server);
         activeEvent = null;
         elapsedTicks = 0;
+        activeDurationTicks = 0;
         ticksRemaining = 0;
+        USED_EVENT_IDS.clear();
         phase = Phase.STOPPED;
+        hideBossBar();
     }
 
     public static synchronized void pauseActiveEvent(MinecraftServer server) {
@@ -105,9 +151,12 @@ public final class BigEventEngine {
     public static synchronized void reset() {
         activeEvent = null;
         elapsedTicks = 0;
+        activeDurationTicks = 0;
         ticksRemaining = 0;
         lastEventId = null;
+        USED_EVENT_IDS.clear();
         phase = Phase.STOPPED;
+        hideBossBar();
     }
 
     public static boolean forceRandomEvent(MinecraftServer server) {
@@ -148,18 +197,29 @@ public final class BigEventEngine {
     private static void startRandomEvent(MinecraftServer server) {
         ChaosEvent selected;
         synchronized (BigEventEngine.class) {
-            List<ChaosEvent> candidates = new ArrayList<>();
+            List<ChaosEvent> eligible = new ArrayList<>();
             for (ChaosEvent event : EVENTS) {
-                if (event.isEligible(server) && !event.id().equals(lastEventId)) candidates.add(event);
+                if (event.isEligible(server)) eligible.add(event);
             }
-            if (candidates.isEmpty()) {
-                for (ChaosEvent event : EVENTS) if (event.isEligible(server)) candidates.add(event);
-            }
-            if (candidates.isEmpty()) {
+
+            if (eligible.isEmpty()) {
                 phase = Phase.WAITING;
                 ticksRemaining = 20 * TICKS_PER_SECOND;
                 return;
             }
+
+            List<ChaosEvent> candidates = eligible.stream()
+                    .filter(event -> !USED_EVENT_IDS.contains(event.id()))
+                    .toList();
+
+            if (candidates.isEmpty()) {
+                USED_EVENT_IDS.clear();
+                candidates = eligible.stream()
+                        .filter(event -> eligible.size() == 1 || !event.id().equals(lastEventId))
+                        .toList();
+                if (candidates.isEmpty()) candidates = eligible;
+            }
+
             selected = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
         }
         startSelectedEvent(server, selected);
@@ -170,13 +230,16 @@ public final class BigEventEngine {
         synchronized (BigEventEngine.class) {
             activeEvent = selected;
             lastEventId = selected.id();
+            USED_EVENT_IDS.add(selected.id());
             elapsedTicks = 0;
             phase = Phase.ACTIVE;
             ticksRemaining = chooseDurationTicks(selected);
+            activeDurationTicks = ticksRemaining;
             selectedDurationTicks = ticksRemaining;
         }
         selected.start(server);
         announceEventStart(server, selected, selectedDurationTicks);
+        updateBossBar(server);
     }
 
     private static void announceEventStart(MinecraftServer server, ChaosEvent event, int durationTicks) {
@@ -254,11 +317,13 @@ public final class BigEventEngine {
             finished = activeEvent;
             activeEvent = null;
             elapsedTicks = 0;
+            activeDurationTicks = 0;
             if (phase != Phase.STOPPED) {
                 phase = Phase.WAITING;
                 scheduleBreak();
             }
         }
+        hideBossBar();
         if (finished != null) {
             finished.stop(server);
             if (announce) broadcast(server, "Большой ивент завершён. Хаос ненадолго отступил.");
@@ -266,8 +331,15 @@ public final class BigEventEngine {
     }
 
     private static int chooseDurationTicks(ChaosEvent event) {
-        int min = event.harsh() ? MIN_HARSH_DURATION_SECONDS : MIN_NORMAL_DURATION_SECONDS;
-        int max = event.harsh() ? MAX_HARSH_DURATION_SECONDS : MAX_NORMAL_DURATION_SECONDS;
+        int min;
+        int max;
+        if (MOB_WAVE_EVENT_IDS.contains(event.id())) {
+            min = MIN_MOB_WAVE_DURATION_SECONDS;
+            max = MAX_MOB_WAVE_DURATION_SECONDS;
+        } else {
+            min = event.harsh() ? MIN_HARSH_DURATION_SECONDS : MIN_NORMAL_DURATION_SECONDS;
+            max = event.harsh() ? MAX_HARSH_DURATION_SECONDS : MAX_NORMAL_DURATION_SECONDS;
+        }
         int durationSeconds = ThreadLocalRandom.current().nextInt(min, max + 1);
         return durationSeconds * Math.max(1, event.timerTicksPerSecond());
     }
@@ -275,6 +347,34 @@ public final class BigEventEngine {
     private static void scheduleBreak() {
         ticksRemaining = ThreadLocalRandom.current().nextInt(MIN_BREAK_SECONDS, MAX_BREAK_SECONDS + 1)
                 * TICKS_PER_SECOND;
+    }
+
+    private static void updateBossBar(MinecraftServer server) {
+        ChaosEvent event;
+        int remaining;
+        int total;
+        int seconds;
+        synchronized (BigEventEngine.class) {
+            if (phase != Phase.ACTIVE || activeEvent == null || activeDurationTicks <= 0) {
+                hideBossBar();
+                return;
+            }
+            event = activeEvent;
+            remaining = Math.max(0, ticksRemaining);
+            total = Math.max(1, activeDurationTicks);
+            int ticksPerSecond = Math.max(1, event.timerTicksPerSecond());
+            seconds = (remaining + ticksPerSecond - 1) / ticksPerSecond;
+        }
+
+        EVENT_TIMER.setName(Component.literal(event.displayName() + " • осталось " + formatSeconds(seconds)));
+        EVENT_TIMER.setProgress(Math.max(0.0F, Math.min(1.0F, (float) remaining / total)));
+        EVENT_TIMER.setVisible(true);
+        server.getPlayerList().getPlayers().forEach(EVENT_TIMER::addPlayer);
+    }
+
+    private static void hideBossBar() {
+        EVENT_TIMER.setVisible(false);
+        EVENT_TIMER.removeAllPlayers();
     }
 
     private static void broadcast(MinecraftServer server, String text) {
@@ -296,7 +396,8 @@ public final class BigEventEngine {
         return switch (phase) {
             case STOPPED -> "большие ивенты остановлены";
             case WAITING -> "перерыв до большого ивента: " + formatSeconds(getSecondsRemaining());
-            case ACTIVE -> "большой ивент активен, осталось: " + formatSeconds(getSecondsRemaining());
+            case ACTIVE -> "активен «" + activeEvent.displayName() + "», осталось: "
+                    + formatSeconds(getSecondsRemaining());
         };
     }
 

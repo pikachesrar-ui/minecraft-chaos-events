@@ -1,7 +1,6 @@
 package com.kiras.chaosevents.spatial;
 
 import com.kiras.chaosevents.registry.ModItems;
-import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -26,20 +25,69 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Runtime state of the spatial-swap big event. */
+/** Runtime state of spatial swaps and the dedicated spatial-swap big event. */
 public final class SpatialSwapManager {
-    private static final int RETURN_WINDOW_TICKS = 10 * 20;
+    private static final int TICKS_PER_SECOND = 20;
+    private static final int RETURN_WINDOW_TICKS = 10 * TICKS_PER_SECOND;
+    private static final int MIN_AUTOMATIC_SWAP_SECONDS = 15 * 60;
+    private static final int MAX_AUTOMATIC_SWAP_SECONDS = 20 * 60;
+    private static final int AUTOMATIC_SWAP_RETRY_SECONDS = 60;
     private static final String PREFIX = "[Пространственный сдвиг] ";
 
     private static final Map<UUID, StoredPosition> ORIGINAL_POSITIONS = new HashMap<>();
     private static final Set<UUID> PARTICIPANTS = new HashSet<>();
     private static final Set<UUID> ACTIVATED_ANCHORS = new HashSet<>();
 
+    private static boolean sessionActive;
     private static boolean active;
-    private static boolean diamondSwapUsed;
+    private static boolean diamondSwapUsedForSession;
     private static int anchorWindowTicks;
+    private static int ticksUntilAutomaticSwap;
 
     private SpatialSwapManager() {
+    }
+
+    public static synchronized void startSession() {
+        sessionActive = true;
+        diamondSwapUsedForSession = false;
+        scheduleAutomaticSwap();
+    }
+
+    public static void stopSession(MinecraftServer server) {
+        stopEvent(server);
+        synchronized (SpatialSwapManager.class) {
+            sessionActive = false;
+            diamondSwapUsedForSession = false;
+            ticksUntilAutomaticSwap = 0;
+            anchorWindowTicks = 0;
+            ORIGINAL_POSITIONS.clear();
+            PARTICIPANTS.clear();
+            ACTIVATED_ANCHORS.clear();
+        }
+    }
+
+    /** Ticks the independent 15-20 minute swap timer once at normal Chaos Events speed. */
+    public static void tickSession(MinecraftServer server) {
+        boolean triggerAutomaticSwap = false;
+
+        synchronized (SpatialSwapManager.class) {
+            if (!sessionActive) return;
+            if (ticksUntilAutomaticSwap > 0) ticksUntilAutomaticSwap--;
+            if (ticksUntilAutomaticSwap > 0) return;
+
+            if (active || server.getPlayerList().getPlayers().size() < 2) {
+                ticksUntilAutomaticSwap = AUTOMATIC_SWAP_RETRY_SECONDS * TICKS_PER_SECOND;
+                return;
+            }
+
+            scheduleAutomaticSwap();
+            triggerAutomaticSwap = true;
+        }
+
+        if (triggerAutomaticSwap) {
+            broadcast(server, "Плановый пространственный сбой! Игроки меняются текущими позициями.");
+            swapAllOnlinePlayers(server);
+        }
     }
 
     public static synchronized boolean canStart(MinecraftServer server) {
@@ -52,9 +100,9 @@ public final class SpatialSwapManager {
             return false;
         }
 
+        boolean diamondAvailable;
         synchronized (SpatialSwapManager.class) {
             active = true;
-            diamondSwapUsed = false;
             anchorWindowTicks = 0;
             ORIGINAL_POSITIONS.clear();
             PARTICIPANTS.clear();
@@ -64,6 +112,7 @@ public final class SpatialSwapManager {
                 PARTICIPANTS.add(player.getUUID());
                 ORIGINAL_POSITIONS.put(player.getUUID(), StoredPosition.capture(player));
             }
+            diamondAvailable = !diamondSwapUsedForSession;
         }
 
         swapCurrentPositions(server);
@@ -72,11 +121,14 @@ public final class SpatialSwapManager {
         }
         broadcast(server, "Игроки поменялись местами, в том числе между измерениями.");
         broadcast(server, "У каждого есть пространственный якорь. После активации первого у всех будет 10 секунд, чтобы активировать свои.");
-        broadcast(server, "Первая добытая алмазная руда вызовет дополнительный обмен.");
+        if (diamondAvailable) {
+            broadcast(server, "Первая добытая за эту сессию алмазная руда вызовет ещё один обмен.");
+        }
         return true;
     }
 
-    public static synchronized void tick(MinecraftServer server) {
+    /** Ticks only the anchor synchronization window of the dedicated big event. */
+    public static synchronized void tickEvent(MinecraftServer server) {
         if (!active || anchorWindowTicks <= 0) {
             return;
         }
@@ -122,18 +174,19 @@ public final class SpatialSwapManager {
     public static boolean onBlockBroken(MinecraftServer server, ServerPlayer player, BlockState state) {
         boolean trigger;
         synchronized (SpatialSwapManager.class) {
-            trigger = active
-                    && !diamondSwapUsed
-                    && PARTICIPANTS.contains(player.getUUID())
+            trigger = sessionActive
+                    && !diamondSwapUsedForSession
+                    && server.getPlayerList().getPlayers().size() >= 2
                     && (state.is(Blocks.DIAMOND_ORE) || state.is(Blocks.DEEPSLATE_DIAMOND_ORE));
             if (trigger) {
-                diamondSwapUsed = true;
+                diamondSwapUsedForSession = true;
             }
         }
 
         if (trigger) {
-            broadcast(server, player.getGameProfile().getName() + " потревожил алмазную жилу. Пространство снова меняется!");
-            swapCurrentPositions(server);
+            broadcast(server, player.getGameProfile().getName()
+                    + " первым за сессию сломал алмазную руду. Пространство меняется!");
+            swapAllOnlinePlayers(server);
         }
         return trigger;
     }
@@ -152,14 +205,15 @@ public final class SpatialSwapManager {
         synchronized (SpatialSwapManager.class) {
             ORIGINAL_POSITIONS.clear();
             PARTICIPANTS.clear();
-            diamondSwapUsed = false;
         }
     }
 
     public static synchronized void reset() {
+        sessionActive = false;
         active = false;
-        diamondSwapUsed = false;
+        diamondSwapUsedForSession = false;
         anchorWindowTicks = 0;
+        ticksUntilAutomaticSwap = 0;
         ORIGINAL_POSITIONS.clear();
         PARTICIPANTS.clear();
         ACTIVATED_ANCHORS.clear();
@@ -188,6 +242,14 @@ public final class SpatialSwapManager {
         List<ServerPlayer> players = server.getPlayerList().getPlayers().stream()
                 .filter(player -> isParticipant(player.getUUID()))
                 .toList();
+        swapPlayers(server, players);
+    }
+
+    private static void swapAllOnlinePlayers(MinecraftServer server) {
+        swapPlayers(server, new ArrayList<>(server.getPlayerList().getPlayers()));
+    }
+
+    private static void swapPlayers(MinecraftServer server, List<ServerPlayer> players) {
         if (players.size() < 2) {
             return;
         }
@@ -260,6 +322,13 @@ public final class SpatialSwapManager {
         player.getInventory().setChanged();
     }
 
+    private static synchronized void scheduleAutomaticSwap() {
+        ticksUntilAutomaticSwap = ThreadLocalRandom.current().nextInt(
+                MIN_AUTOMATIC_SWAP_SECONDS,
+                MAX_AUTOMATIC_SWAP_SECONDS + 1
+        ) * TICKS_PER_SECOND;
+    }
+
     private static void broadcast(MinecraftServer server, String text) {
         Component component = Component.literal(PREFIX + text);
         server.getPlayerList().getPlayers().forEach(player -> player.sendSystemMessage(component));
@@ -270,13 +339,24 @@ public final class SpatialSwapManager {
     }
 
     public static synchronized String getStatusText() {
+        if (!sessionActive) {
+            return "пространственные свапы остановлены";
+        }
+
+        int seconds = Math.max(0, (ticksUntilAutomaticSwap + TICKS_PER_SECOND - 1) / TICKS_PER_SECOND);
+        String automaticStatus = "плановый свап через " + formatSeconds(seconds);
         if (!active) {
-            return "пространственный сдвиг не активен";
+            return automaticStatus;
         }
         if (anchorWindowTicks > 0) {
-            return "окно якорей: " + String.format("%.1f", anchorWindowTicks / 20.0) + " сек.";
+            return "окно якорей: " + String.format("%.1f", anchorWindowTicks / 20.0)
+                    + " сек.; " + automaticStatus;
         }
-        return "пространственный сдвиг активен, якоря ожидают синхронизации";
+        return "пространственный сдвиг активен, якоря ожидают синхронизации; " + automaticStatus;
+    }
+
+    private static String formatSeconds(int totalSeconds) {
+        return String.format("%d:%02d", totalSeconds / 60, totalSeconds % 60);
     }
 
     private record StoredPosition(ResourceKey<Level> dimension, double x, double y, double z, float yaw, float pitch) {
