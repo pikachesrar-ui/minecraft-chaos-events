@@ -75,6 +75,7 @@ public final class BigEventEngine {
         events.add(AcceleratedTimeEvent.INSTANCE);
         events.add(SpatialSwapEvent.INSTANCE);
         events.addAll(List.of(ExpandedChaosEvent.values()));
+        events.addAll(List.of(InternetChaosEvent.values()));
         EVENTS = List.copyOf(events);
     }
 
@@ -333,7 +334,12 @@ public final class BigEventEngine {
     private static int chooseDurationTicks(ChaosEvent event) {
         int min;
         int max;
-        if (MOB_WAVE_EVENT_IDS.contains(event.id())) {
+        int customMin = event.minimumDurationSeconds();
+        int customMax = event.maximumDurationSeconds();
+        if (customMin > 0 && customMax >= customMin) {
+            min = customMin;
+            max = customMax;
+        } else if (MOB_WAVE_EVENT_IDS.contains(event.id())) {
             min = MIN_MOB_WAVE_DURATION_SECONDS;
             max = MAX_MOB_WAVE_DURATION_SECONDS;
         } else {
