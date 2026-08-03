@@ -5,6 +5,7 @@ import com.kiras.chaosevents.core.ChaosSessionManager;
 import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.event.ExpandedChaosEvent;
+import com.kiras.chaosevents.event.InternetChaosEvent;
 import com.kiras.chaosevents.network.ChaosNetwork;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
 import com.kiras.chaosevents.registry.ModItems;
@@ -12,6 +13,7 @@ import com.kiras.chaosevents.registry.ModSounds;
 import com.kiras.chaosevents.spatial.SpatialSwapManager;
 import com.kiras.chaosevents.trivia.TriviaEngine;
 import com.mojang.logging.LogUtils;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
@@ -21,6 +23,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.ServerChatEvent;
+import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
@@ -75,6 +78,14 @@ public final class ChaosEvents {
         if (event.getPlayer() instanceof ServerPlayer player && player.getServer() != null) {
             SpatialSwapManager.onBlockBroken(player.getServer(), player, event.getState());
             ExpandedChaosEvent.onBlockBroken(player, event.getPos());
+        }
+    }
+
+    @SubscribeEvent
+    public void onFoodConsumed(LivingEntityUseItemEvent.Finish event) {
+        if (event.getEntity() instanceof ServerPlayer player
+                && event.getItem().has(DataComponents.FOOD)) {
+            InternetChaosEvent.onFoodConsumed(player);
         }
     }
 
