@@ -276,7 +276,8 @@ public enum InternetChaosEvent implements ChaosEvent {
                     "summon minecraft:zombie ~2 ~ ~ {IsBaby:1b}"));
             case THE_END -> sendRandomPlayerToEnd(server);
             case U_TURN -> forPlayers(server, player -> player.teleportTo(
-                    player.getX(), player.getY(), player.getZ(), player.getYRot() + 180.0F, player.getXRot()));
+                    player.serverLevel(), player.getX(), player.getY(), player.getZ(),
+                    player.getYRot() + 180.0F, player.getXRot()));
             case WATCH_OUT -> broadcast(server, "Берегитесь. Сюрприз уже летит сверху.");
             case LEADER_OF_THE_PACK -> forPlayers(server, player -> {
                 spawnMobs(player, EntityType.WOLF, 4, 5, false);
