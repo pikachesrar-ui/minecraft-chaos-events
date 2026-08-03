@@ -38,4 +38,14 @@ public interface ChaosEvent {
     default int timerTicksPerSecond() {
         return 20;
     }
+
+    /** Optional per-event duration override. A negative value keeps engine defaults. */
+    default int minimumDurationSeconds() {
+        return -1;
+    }
+
+    /** Optional per-event duration override. A negative value keeps engine defaults. */
+    default int maximumDurationSeconds() {
+        return -1;
+    }
 }
