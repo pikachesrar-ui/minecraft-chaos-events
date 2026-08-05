@@ -1,0 +1,30 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "thuttech"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "group": "thuttech",
+  "pattern": [
+    "XYX",
+    "ZXZ",
+    "ZZZ"
+  ],
+  "key": {
+    "X": {
+      "item": "minecraft:iron_ingot"
+    },
+    "Y": {
+      "item": "minecraft:redstone"
+    },
+    "Z": {
+      "item": "minecraft:stone"
+    }
+  },
+  "result": {
+    "id": "thuttech:lift",
+    "count": 1
+  }
+}
