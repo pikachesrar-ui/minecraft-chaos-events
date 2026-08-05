@@ -1,0 +1,27 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "thuttech"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "group": "thuttech",
+  "pattern": [
+    "XYX",
+    "YXY",
+    "XYX"
+  ],
+  "key": {
+    "X": {
+      "item": "minecraft:iron_ingot"
+    },
+    "Y": {
+      "item": "minecraft:redstone"
+    }
+  },
+  "result": {
+    "id": "thuttech:controller",
+    "count": 1
+  }
+}
