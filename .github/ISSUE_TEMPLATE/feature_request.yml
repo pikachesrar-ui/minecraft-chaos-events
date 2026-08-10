@@ -1,0 +1,42 @@
+name: Event or feature request
+description: Suggest a new chaos event or project improvement
+title: "[Idea]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What should be added or improved?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe what players see, how long it lasts and how the effect ends.
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Large event
+        - Micro prank
+        - Trivia
+        - Spatial mechanic
+        - Command or configuration
+        - Documentation or tooling
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: cleanup
+    attributes:
+      label: Cleanup and safety
+      description: Explain how temporary changes can be reverted when the event or session stops.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add screenshots, examples or links if useful.

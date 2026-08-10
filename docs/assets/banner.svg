@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-labelledby="title desc">
+  <title id="title">Chaos Events</title>
+  <desc id="desc">Purple and orange pixel-art banner for the Chaos Events Minecraft mod</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="0.52" stop-color="#2e1065"/>
+      <stop offset="1" stop-color="#7c2d12"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#fb923c"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity=".45"/>
+    </filter>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#fff" stroke-opacity=".045" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="360" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="360" rx="24" fill="url(#grid)"/>
+  <g opacity=".75">
+    <path d="M0 280h80v-40h80v80h80v40H0z" fill="#7c3aed"/>
+    <path d="M1040 320h80v-80h80v40h80v80h-240z" fill="#ea580c"/>
+    <path d="M80 40h40v40H80zM1200 80h40v40h-40zM1120 40h40v40h-40z" fill="#fff" opacity=".12"/>
+  </g>
+  <g transform="translate(92 82)" filter="url(#shadow)">
+    <rect x="0" y="0" width="168" height="168" rx="18" fill="#171126" stroke="url(#accent)" stroke-width="6"/>
+    <path d="M28 52h36V28h40v24h36v40h-24v36H92v24H52v-24H28V92H4V52z" fill="url(#accent)" transform="translate(12 0)"/>
+    <rect x="64" y="64" width="40" height="40" fill="#171126"/>
+  </g>
+  <g transform="translate(310 104)" filter="url(#shadow)">
+    <text x="0" y="76" fill="#fff" font-family="ui-monospace, 'Segoe UI', sans-serif" font-size="88" font-weight="900" letter-spacing="5">CHAOS EVENTS</text>
+    <rect x="4" y="100" width="710" height="8" rx="4" fill="url(#accent)"/>
+    <text x="4" y="146" fill="#ddd6fe" font-family="ui-monospace, 'Segoe UI', sans-serif" font-size="24" font-weight="600" letter-spacing="2">EXPECT THE UNEXPECTED</text>
+  </g>
+</svg>
