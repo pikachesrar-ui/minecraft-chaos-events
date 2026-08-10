@@ -1,0 +1,72 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a problem. Please remove sensitive data from logs before attaching them.
+  - type: input
+    id: chaos-version
+    attributes:
+      label: Chaos Events version
+      placeholder: "0.1.0 or commit SHA"
+    validations:
+      required: true
+  - type: input
+    id: neoforge-version
+    attributes:
+      label: Minecraft and NeoForge versions
+      placeholder: "Minecraft 1.21.1, NeoForge 21.1.244"
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Singleplayer / integrated server
+        - Dedicated server
+    validations:
+      required: true
+  - type: textarea
+    id: other-mods
+    attributes:
+      label: Other installed mods
+      description: Include Weather2 or Oh My, Meteors! versions when relevant.
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a session with /chaos start
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: I removed tokens, server addresses and other sensitive information from logs.
+          required: true
