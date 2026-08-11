@@ -18,10 +18,7 @@ public final class ChaosSessionManager {
     public static synchronized boolean start(MinecraftServer server) {
         if (state != State.STOPPED) return false;
         state = State.RUNNING;
-        BigEventEngine.startSession();
-        MicroPrankEngine.startSession();
-        TriviaEngine.startSession();
-        SpatialSwapManager.startSession();
+        startEngines();
         return true;
     }
 
@@ -41,11 +38,33 @@ public final class ChaosSessionManager {
 
     public static synchronized boolean stop(MinecraftServer server) {
         if (state == State.STOPPED) return false;
-        BigEventEngine.stopSession(server);
-        MicroPrankEngine.stopSession(server);
-        TriviaEngine.stopSession();
-        SpatialSwapManager.stopSession(server);
+        stopEngines(server);
         state = State.STOPPED;
+        return true;
+    }
+
+    /**
+     * Applies a saved configuration without requiring a Minecraft/server restart.
+     * Running sessions are cleanly stopped and started again so event pools are rebuilt
+     * from the new enabled/disabled selections. A paused session remains paused.
+     */
+    public static synchronized boolean restartAfterConfigurationChange(MinecraftServer server) {
+        State previousState = state;
+        if (previousState == State.STOPPED) {
+            BigEventEngine.reset();
+            MicroPrankEngine.reset();
+            TriviaEngine.reset();
+            SpatialSwapManager.reset();
+            return false;
+        }
+
+        stopEngines(server);
+        state = State.RUNNING;
+        startEngines();
+        if (previousState == State.PAUSED) {
+            BigEventEngine.pauseActiveEvent(server);
+            state = State.PAUSED;
+        }
         return true;
     }
 
@@ -59,10 +78,7 @@ public final class ChaosSessionManager {
 
     public static synchronized void shutdown(MinecraftServer server) {
         if (state != State.STOPPED) {
-            BigEventEngine.stopSession(server);
-            MicroPrankEngine.stopSession(server);
-            TriviaEngine.stopSession();
-            SpatialSwapManager.stopSession(server);
+            stopEngines(server);
         }
         state = State.STOPPED;
     }
@@ -121,4 +137,18 @@ public final class ChaosSessionManager {
     public static String getMicroPrankStatus() { return MicroPrankEngine.getStatusText(); }
     public static String getTriviaStatus() { return TriviaEngine.getStatusText(); }
     public static String getSpatialStatus() { return SpatialSwapManager.getStatusText(); }
+
+    private static void startEngines() {
+        BigEventEngine.startSession();
+        MicroPrankEngine.startSession();
+        TriviaEngine.startSession();
+        SpatialSwapManager.startSession();
+    }
+
+    private static void stopEngines(MinecraftServer server) {
+        BigEventEngine.stopSession(server);
+        MicroPrankEngine.stopSession(server);
+        TriviaEngine.stopSession();
+        SpatialSwapManager.stopSession(server);
+    }
 }
