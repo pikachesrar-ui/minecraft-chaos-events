@@ -23,10 +23,12 @@ public final class ChaosConfigManager {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path CONFIG_PATH = FMLPaths.CONFIGDIR.get().resolve("chaosevents-settings.json");
     private static final EnumMap<ChaosConfigCategory, Set<String>> DISABLED = new EnumMap<>(ChaosConfigCategory.class);
+    private static final EnumMap<ChaosConfigCategory, IntervalRange> INTERVALS = new EnumMap<>(ChaosConfigCategory.class);
 
     static {
         for (ChaosConfigCategory category : ChaosConfigCategory.values()) {
             DISABLED.put(category, new HashSet<>());
+            INTERVALS.put(category, defaultInterval(category));
         }
     }
 
@@ -35,6 +37,7 @@ public final class ChaosConfigManager {
 
     public static synchronized void load() {
         clearAll();
+        resetIntervalsToDefaults();
         if (!Files.isRegularFile(CONFIG_PATH)) {
             save();
             return;
@@ -47,14 +50,26 @@ public final class ChaosConfigManager {
             }
             for (ChaosConfigCategory category : ChaosConfigCategory.values()) {
                 JsonArray array = root.getAsJsonArray(category.id());
-                if (array == null) {
-                    continue;
-                }
-                Set<String> disabled = DISABLED.get(category);
-                for (JsonElement element : array) {
-                    if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
-                        disabled.add(element.getAsString());
+                if (array != null) {
+                    Set<String> disabled = DISABLED.get(category);
+                    for (JsonElement element : array) {
+                        if (element.isJsonPrimitive() && element.getAsJsonPrimitive().isString()) {
+                            disabled.add(element.getAsString());
+                        }
                     }
+                }
+            }
+
+            JsonObject intervals = root.getAsJsonObject("intervals");
+            if (intervals != null) {
+                for (ChaosConfigCategory category : ChaosConfigCategory.values()) {
+                    JsonObject interval = intervals.getAsJsonObject(category.id());
+                    if (interval == null) {
+                        continue;
+                    }
+                    int min = readInt(interval, "minSeconds", category.defaultMinIntervalSeconds());
+                    int max = readInt(interval, "maxSeconds", category.defaultMaxIntervalSeconds());
+                    INTERVALS.put(category, sanitizeInterval(category, min, max));
                 }
             }
         } catch (Exception exception) {
@@ -69,6 +84,16 @@ public final class ChaosConfigManager {
             DISABLED.get(category).stream().sorted().forEach(array::add);
             root.add(category.id(), array);
         }
+
+        JsonObject intervals = new JsonObject();
+        for (ChaosConfigCategory category : ChaosConfigCategory.values()) {
+            IntervalRange range = INTERVALS.get(category);
+            JsonObject interval = new JsonObject();
+            interval.addProperty("minSeconds", range.minSeconds());
+            interval.addProperty("maxSeconds", range.maxSeconds());
+            intervals.add(category.id(), interval);
+        }
+        root.add("intervals", intervals);
 
         try {
             Files.createDirectories(CONFIG_PATH.getParent());
@@ -102,6 +127,21 @@ public final class ChaosConfigManager {
         }
     }
 
+    public static synchronized int getMinIntervalSeconds(ChaosConfigCategory category) {
+        return intervalFor(category).minSeconds();
+    }
+
+    public static synchronized int getMaxIntervalSeconds(ChaosConfigCategory category) {
+        return intervalFor(category).maxSeconds();
+    }
+
+    public static synchronized void setIntervalSeconds(ChaosConfigCategory category, int minSeconds, int maxSeconds) {
+        if (category == null) {
+            return;
+        }
+        INTERVALS.put(category, sanitizeInterval(category, minSeconds, maxSeconds));
+    }
+
     public static String encodeDisabled(Collection<String> disabledIds) {
         if (disabledIds == null || disabledIds.isEmpty()) {
             return "";
@@ -122,9 +162,51 @@ public final class ChaosConfigManager {
         return result;
     }
 
+    private static int readInt(JsonObject object, String key, int fallback) {
+        try {
+            JsonElement element = object.get(key);
+            if (element != null && element.isJsonPrimitive() && element.getAsJsonPrimitive().isNumber()) {
+                return element.getAsInt();
+            }
+        } catch (Exception ignored) {
+        }
+        return fallback;
+    }
+
+    private static IntervalRange intervalFor(ChaosConfigCategory category) {
+        if (category == null) {
+            return new IntervalRange(60, 60);
+        }
+        return INTERVALS.getOrDefault(category, defaultInterval(category));
+    }
+
+    private static IntervalRange sanitizeInterval(ChaosConfigCategory category, int minSeconds, int maxSeconds) {
+        int min = Math.max(ChaosConfigCategory.MIN_ALLOWED_INTERVAL_SECONDS,
+                Math.min(ChaosConfigCategory.MAX_ALLOWED_INTERVAL_SECONDS, minSeconds));
+        int max = Math.max(ChaosConfigCategory.MIN_ALLOWED_INTERVAL_SECONDS,
+                Math.min(ChaosConfigCategory.MAX_ALLOWED_INTERVAL_SECONDS, maxSeconds));
+        if (max < min) {
+            max = min;
+        }
+        return new IntervalRange(min, max);
+    }
+
+    private static IntervalRange defaultInterval(ChaosConfigCategory category) {
+        return new IntervalRange(category.defaultMinIntervalSeconds(), category.defaultMaxIntervalSeconds());
+    }
+
     private static void clearAll() {
         for (Set<String> disabled : DISABLED.values()) {
             disabled.clear();
         }
+    }
+
+    private static void resetIntervalsToDefaults() {
+        for (ChaosConfigCategory category : ChaosConfigCategory.values()) {
+            INTERVALS.put(category, defaultInterval(category));
+        }
+    }
+
+    private record IntervalRange(int minSeconds, int maxSeconds) {
     }
 }
