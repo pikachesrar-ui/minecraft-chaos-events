@@ -31,8 +31,9 @@ The session is controlled by an operator and does not start automatically. Use `
 
 - **Large chaos events** with a boss-bar timer, randomized breaks and no immediate repeats.
 - **Micro pranks** aimed at individual players every 1–3 minutes, designed to be disruptive without being deliberately lethal.
-- **Trivia rounds** every 6–12 minutes with a 15-second answer window, rewards and light penalties.
+- **Trivia rounds** every 6–12 minutes with a 15-second answer window, rewards and penalties for mistakes.
 - **Spatial swaps** that exchange online players between positions and dimensions, including a cooperative return-anchor mechanic.
+- **In-game content configuration** through four books that toggle individual events, pranks, trivia questions and swap triggers.
 - **Accelerated world event** that runs the world at 200 TPS while keeping players close to normal speed.
 - **Optional disaster integrations** for [Weather2](https://www.curseforge.com/minecraft/mc-mods/weather-storms-tornadoes) tornadoes and [Oh My, Meteors!](https://www.curseforge.com/minecraft/mc-mods/oh-my-meteors) meteor showers when those mods are installed.
 - English and Russian item localization; server announcements are currently Russian-first.
@@ -51,7 +52,7 @@ Optional integrations are detected at runtime. Weather2 and Oh My, Meteors! are 
 ## Installation
 
 1. Install Minecraft `1.21.1` with a compatible NeoForge build.
-2. Download the Chaos Events JAR from the [Releases](https://github.com/pikachesrar-ui/minecraft-chaos-events/releases) page. Until the first tagged release is published, build it from source using the instructions below.
+2. Download the Chaos Events JAR from the [Releases](https://github.com/pikachesrar-ui/minecraft-chaos-events/releases) page or build it from source using the instructions below.
 3. Put the JAR in the `mods` folder on the server and on every connecting client.
 4. Start the world and run `/chaos start` as an operator.
 
@@ -67,12 +68,24 @@ All commands require permission level 2.
 | `/chaos stop` | Stop the session and clean up temporary effects |
 | `/chaos status` | Show engine state, timers and registered content counts |
 | `/chaos skip` | End the current large event and schedule the next break |
+| `/chaos book big` | Give the large-events configuration book |
+| `/chaos book prank` | Give the micro-pranks configuration book |
+| `/chaos book trivia` | Give the trivia configuration book |
+| `/chaos book swap` | Give the player-swaps configuration book |
 | `/chaos test big` | Force a random large event |
 | `/chaos test speed` | Force the accelerated-world event |
 | `/chaos test prank` | Apply a random micro prank |
 | `/chaos test screamer` | Show a screamer to the selected player |
 | `/chaos test trivia` | Start a trivia question |
 | `/chaos test swap` | Force a spatial swap; requires at least two players |
+
+## In-game configuration
+
+An operator can obtain one of four configuration books with `/chaos book ...` and open it with right click. Each book presents a paged list with `ON`/`OFF` toggles. **Save** writes the selection to `config/chaosevents-settings.json`.
+
+When a Chaos Events session is already active, saving settings cleanly clears temporary mechanics and restarts the internal chaos session with the newly enabled content. A full Minecraft or server restart is not required.
+
+The swap book can independently disable the scheduled 15–20 minute swap, the one-time first-diamond-ore swap, and the Spatial Swap large event.
 
 ## Build from source
 
