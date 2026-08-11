@@ -23,11 +23,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
-/** Independent 6-12 minute trivia cycle with a 15 second answer window. */
+/** Independent configurable trivia cycle with a 15 second answer window. */
 public final class TriviaEngine {
     private static final int TICKS_PER_SECOND = 20;
-    private static final int MIN_DELAY_SECONDS = 6 * 60;
-    private static final int MAX_DELAY_SECONDS = 12 * 60;
     private static final int ANSWER_WINDOW_TICKS = 15 * TICKS_PER_SECOND;
     private static final String PREFIX = "[Викторина] ";
     private static final List<TriviaQuestion> QUESTIONS = TriviaQuestionBank.QUESTIONS;
@@ -306,7 +304,9 @@ public final class TriviaEngine {
     }
 
     private static void scheduleNextQuestion() {
-        ticksRemaining = ThreadLocalRandom.current().nextInt(MIN_DELAY_SECONDS, MAX_DELAY_SECONDS + 1)
+        int minSeconds = ChaosConfigManager.getMinIntervalSeconds(ChaosConfigCategory.TRIVIA);
+        int maxSeconds = ChaosConfigManager.getMaxIntervalSeconds(ChaosConfigCategory.TRIVIA);
+        ticksRemaining = ThreadLocalRandom.current().nextInt(minSeconds, maxSeconds + 1)
                 * TICKS_PER_SECOND;
     }
 
