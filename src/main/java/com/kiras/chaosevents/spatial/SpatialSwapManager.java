@@ -77,8 +77,10 @@ public final class SpatialSwapManager {
         }
     }
 
-    /** Ticks the independent 15-20 minute swap timer once at normal Chaos Events speed. */
+    /** Ticks return anchors and the independent 15-20 minute swap timer at normal Chaos Events speed. */
     public static void tickSession(MinecraftServer server) {
+        tickAnchorWindow(server);
+
         if (!ChaosConfigManager.isEnabled(ChaosConfigCategory.SWAP, CONFIG_AUTOMATIC_SWAP)) {
             synchronized (SpatialSwapManager.class) {
                 ticksUntilAutomaticSwap = 0;
@@ -136,17 +138,8 @@ public final class SpatialSwapManager {
         return true;
     }
 
-    /** Ticks only the anchor synchronization window of a reversible swap. */
-    public static synchronized void tickEvent(MinecraftServer server) {
-        if (!dedicatedEventActive || !returnActive || anchorWindowTicks <= 0) {
-            return;
-        }
-
-        anchorWindowTicks--;
-        if (anchorWindowTicks == 0) {
-            ACTIVATED_ANCHORS.clear();
-            broadcast(server, "Окно синхронизации закрылось. Якоря можно попробовать активировать снова.");
-        }
+    /** The independent session tick owns anchor timing to avoid double ticking during the big event. */
+    public static void tickEvent(MinecraftServer server) {
     }
 
     public static InteractionResult activateAnchor(MinecraftServer server, ServerPlayer player, InteractionHand hand) {
@@ -202,7 +195,7 @@ public final class SpatialSwapManager {
             broadcast(server, player.getGameProfile().getName()
                     + " первым за сессию сломал алмазную руду. Пространство меняется!");
             if (preserveExistingReturn) {
-                swapAllOnlinePlayers(server);
+                swapCurrentParticipants(server);
             } else {
                 beginReversibleSwap(server, new ArrayList<>(server.getPlayerList().getPlayers()));
             }
@@ -231,6 +224,23 @@ public final class SpatialSwapManager {
         ORIGINAL_POSITIONS.clear();
         PARTICIPANTS.clear();
         ACTIVATED_ANCHORS.clear();
+    }
+
+    private static void tickAnchorWindow(MinecraftServer server) {
+        boolean expired = false;
+        synchronized (SpatialSwapManager.class) {
+            if (!sessionActive || !returnActive || anchorWindowTicks <= 0) {
+                return;
+            }
+            anchorWindowTicks--;
+            if (anchorWindowTicks == 0) {
+                ACTIVATED_ANCHORS.clear();
+                expired = true;
+            }
+        }
+        if (expired) {
+            broadcast(server, "Окно синхронизации закрылось. Якоря можно попробовать активировать снова.");
+        }
     }
 
     private static void beginReversibleSwap(MinecraftServer server, List<ServerPlayer> players) {
@@ -290,6 +300,16 @@ public final class SpatialSwapManager {
 
     private static void swapAllOnlinePlayers(MinecraftServer server) {
         swapPlayers(server, new ArrayList<>(server.getPlayerList().getPlayers()));
+    }
+
+    private static void swapCurrentParticipants(MinecraftServer server) {
+        List<ServerPlayer> players;
+        synchronized (SpatialSwapManager.class) {
+            players = server.getPlayerList().getPlayers().stream()
+                    .filter(player -> PARTICIPANTS.contains(player.getUUID()))
+                    .toList();
+        }
+        swapPlayers(server, players);
     }
 
     private static void swapPlayers(MinecraftServer server, List<ServerPlayer> players) {
