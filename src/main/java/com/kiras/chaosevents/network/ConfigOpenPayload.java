@@ -7,7 +7,8 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-public record ConfigOpenPayload(String category, String disabledIds) implements CustomPacketPayload {
+public record ConfigOpenPayload(String category, String disabledIds, int minIntervalSeconds, int maxIntervalSeconds)
+        implements CustomPacketPayload {
     public static final Type<ConfigOpenPayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(ChaosEvents.MODID, "config_open")
     );
@@ -17,6 +18,10 @@ public record ConfigOpenPayload(String category, String disabledIds) implements 
             ConfigOpenPayload::category,
             ByteBufCodecs.STRING_UTF8,
             ConfigOpenPayload::disabledIds,
+            ByteBufCodecs.VAR_INT,
+            ConfigOpenPayload::minIntervalSeconds,
+            ByteBufCodecs.VAR_INT,
+            ConfigOpenPayload::maxIntervalSeconds,
             ConfigOpenPayload::new
     );
 
