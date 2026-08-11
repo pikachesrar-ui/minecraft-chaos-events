@@ -1,10 +1,10 @@
 package com.kiras.chaosevents.event;
 
-import net.minecraft.ChatFormatting;
+import com.kiras.chaosevents.config.ChaosConfigCategory;
+import com.kiras.chaosevents.config.ChaosConfigEntry;
+import com.kiras.chaosevents.config.ChaosConfigManager;
+import com.kiras.chaosevents.network.ChaosNetwork;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.protocol.game.ClientboundSetSubtitleTextPacket;
-import net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket;
-import net.minecraft.network.protocol.game.ClientboundSetTitlesAnimationPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -165,8 +165,7 @@ public final class BigEventEngine {
             if (phase == Phase.STOPPED) return false;
         }
         finishActiveEvent(server, false);
-        startRandomEvent(server);
-        return true;
+        return startRandomEvent(server);
     }
 
     public static boolean skipActiveEvent(MinecraftServer server) {
@@ -179,7 +178,9 @@ public final class BigEventEngine {
 
     public static boolean forceSpatialEvent(MinecraftServer server) {
         synchronized (BigEventEngine.class) {
-            if (phase == Phase.STOPPED || !SpatialSwapEvent.INSTANCE.isEligible(server)) return false;
+            if (phase == Phase.STOPPED
+                    || !ChaosConfigManager.isEnabled(ChaosConfigCategory.BIG, SpatialSwapEvent.INSTANCE.id())
+                    || !SpatialSwapEvent.INSTANCE.isEligible(server)) return false;
         }
         finishActiveEvent(server, false);
         startSelectedEvent(server, SpatialSwapEvent.INSTANCE);
@@ -188,27 +189,32 @@ public final class BigEventEngine {
 
     public static boolean forceAcceleratedTimeEvent(MinecraftServer server) {
         synchronized (BigEventEngine.class) {
-            if (phase == Phase.STOPPED || !AcceleratedTimeEvent.INSTANCE.isEligible(server)) return false;
+            if (phase == Phase.STOPPED
+                    || !ChaosConfigManager.isEnabled(ChaosConfigCategory.BIG, AcceleratedTimeEvent.INSTANCE.id())
+                    || !AcceleratedTimeEvent.INSTANCE.isEligible(server)) return false;
         }
         finishActiveEvent(server, false);
         startSelectedEvent(server, AcceleratedTimeEvent.INSTANCE);
         return true;
     }
 
-    private static void startRandomEvent(MinecraftServer server) {
+    private static boolean startRandomEvent(MinecraftServer server) {
         ChaosEvent selected;
         synchronized (BigEventEngine.class) {
             List<ChaosEvent> eligible = new ArrayList<>();
             for (ChaosEvent event : EVENTS) {
-                if (event.isEligible(server)) eligible.add(event);
+                if (ChaosConfigManager.isEnabled(ChaosConfigCategory.BIG, event.id()) && event.isEligible(server)) {
+                    eligible.add(event);
+                }
             }
 
             if (eligible.isEmpty()) {
                 phase = Phase.WAITING;
                 ticksRemaining = 20 * TICKS_PER_SECOND;
-                return;
+                return false;
             }
 
+            USED_EVENT_IDS.removeIf(id -> eligible.stream().noneMatch(event -> event.id().equals(id)));
             List<ChaosEvent> candidates = eligible.stream()
                     .filter(event -> !USED_EVENT_IDS.contains(event.id()))
                     .toList();
@@ -224,6 +230,7 @@ public final class BigEventEngine {
             selected = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
         }
         startSelectedEvent(server, selected);
+        return true;
     }
 
     private static void startSelectedEvent(MinecraftServer server, ChaosEvent selected) {
@@ -246,14 +253,8 @@ public final class BigEventEngine {
     private static void announceEventStart(MinecraftServer server, ChaosEvent event, int durationTicks) {
         int ticksPerSecond = Math.max(1, event.timerTicksPerSecond());
         int durationSeconds = Math.max(1, durationTicks / ticksPerSecond);
-        String description = event.description().isBlank() ? descriptionFor(event.id()) : event.description();
+        String description = descriptionForEvent(event);
 
-        Component title = Component.literal(event.displayName())
-                .withStyle(ChatFormatting.RED, ChatFormatting.BOLD);
-        Component subtitle = Component.literal(
-                        "Длительность: " + formatSeconds(durationSeconds) + " • " + description
-                )
-                .withStyle(ChatFormatting.GOLD);
         Component chatMessage = Component.literal(
                 PREFIX + "Начался большой ивент: " + event.displayName()
                         + " — " + description
@@ -261,12 +262,14 @@ public final class BigEventEngine {
         );
 
         server.getPlayerList().getPlayers().forEach(player -> {
-            player.connection.send(new ClientboundSetTitlesAnimationPacket(10, 80, 20));
-            player.connection.send(new ClientboundSetSubtitleTextPacket(subtitle));
-            player.connection.send(new ClientboundSetTitleTextPacket(title));
+            ChaosNetwork.sendEventAnnouncement(player, event.displayName(), description, durationSeconds);
             player.playNotifySound(SoundEvents.WITHER_SPAWN, SoundSource.MASTER, 0.85F, 1.0F);
             player.sendSystemMessage(chatMessage);
         });
+    }
+
+    private static String descriptionForEvent(ChaosEvent event) {
+        return event.description().isBlank() ? descriptionFor(event.id()) : event.description();
     }
 
     private static String descriptionFor(String eventId) {
@@ -408,6 +411,12 @@ public final class BigEventEngine {
     }
 
     public static int getRegisteredEventCount() { return EVENTS.size(); }
+
+    public static List<ChaosConfigEntry> getConfigEntries() {
+        return EVENTS.stream()
+                .map(event -> new ChaosConfigEntry(event.id(), event.displayName(), descriptionForEvent(event)))
+                .toList();
+    }
 
     private static String formatSeconds(int totalSeconds) {
         return String.format("%d:%02d", totalSeconds / 60, totalSeconds % 60);
