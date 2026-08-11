@@ -1,3 +1,7 @@
 {
-  "item.chaosevents.spatial_anchor": "Пространственный якорь"
+  "item.chaosevents.spatial_anchor": "Пространственный якорь",
+  "item.chaosevents.config_big_book": "Книга настройки больших событий",
+  "item.chaosevents.config_prank_book": "Книга настройки микроподлянок",
+  "item.chaosevents.config_trivia_book": "Книга настройки викторины",
+  "item.chaosevents.config_swap_book": "Книга настройки свапов"
 }

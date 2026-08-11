@@ -1,3 +1,7 @@
 {
-  "item.chaosevents.spatial_anchor": "Spatial Anchor"
+  "item.chaosevents.spatial_anchor": "Spatial Anchor",
+  "item.chaosevents.config_big_book": "Big Events Configuration Book",
+  "item.chaosevents.config_prank_book": "Micro Pranks Configuration Book",
+  "item.chaosevents.config_trivia_book": "Trivia Configuration Book",
+  "item.chaosevents.config_swap_book": "Player Swaps Configuration Book"
 }

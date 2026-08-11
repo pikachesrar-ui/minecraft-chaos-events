@@ -8,12 +8,13 @@ public final class TriviaQuestionBank {
     public static final List<TriviaQuestion> QUESTIONS;
 
     static {
-        List<TriviaQuestion> questions = new ArrayList<>(180);
+        List<TriviaQuestion> questions = new ArrayList<>(220);
         questions.addAll(MathQuestions.QUESTIONS);
         questions.addAll(HistoryQuestions.QUESTIONS);
         questions.addAll(LiteratureQuestions.QUESTIONS);
         questions.addAll(LogicQuestions.QUESTIONS);
         questions.addAll(GeneralQuestions.QUESTIONS);
+        questions.addAll(GamingQuestions.QUESTIONS);
         QUESTIONS = Collections.unmodifiableList(questions);
     }
 

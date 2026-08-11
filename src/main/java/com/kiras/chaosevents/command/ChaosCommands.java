@@ -1,14 +1,17 @@
 package com.kiras.chaosevents.command;
 
+import com.kiras.chaosevents.config.ChaosConfigCategory;
 import com.kiras.chaosevents.core.ChaosSessionManager;
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
+import com.kiras.chaosevents.registry.ModItems;
 import com.kiras.chaosevents.trivia.TriviaEngine;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 
 public final class ChaosCommands {
@@ -24,6 +27,11 @@ public final class ChaosCommands {
                         .then(Commands.literal("resume").executes(context -> resume(context.getSource())))
                         .then(Commands.literal("stop").executes(context -> stop(context.getSource())))
                         .then(Commands.literal("status").executes(context -> status(context.getSource())))
+                        .then(Commands.literal("book")
+                                .then(Commands.literal("big").executes(context -> giveConfigBook(context.getSource(), ChaosConfigCategory.BIG)))
+                                .then(Commands.literal("prank").executes(context -> giveConfigBook(context.getSource(), ChaosConfigCategory.PRANK)))
+                                .then(Commands.literal("trivia").executes(context -> giveConfigBook(context.getSource(), ChaosConfigCategory.TRIVIA)))
+                                .then(Commands.literal("swap").executes(context -> giveConfigBook(context.getSource(), ChaosConfigCategory.SWAP))))
                         .then(Commands.literal("skip")
                                 .executes(context -> skipBig(context.getSource()))
                                 .then(Commands.literal("big").executes(context -> skipBig(context.getSource()))))
@@ -35,6 +43,20 @@ public final class ChaosCommands {
                                 .then(Commands.literal("trivia").executes(context -> testTrivia(context.getSource())))
                                 .then(Commands.literal("swap").executes(context -> testSwap(context.getSource()))))
         );
+    }
+
+    private static int giveConfigBook(CommandSourceStack source, ChaosConfigCategory category) {
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal(PREFIX + "книгу настройки можно выдать только игроку."));
+            return 0;
+        }
+
+        ItemStack book = new ItemStack(ModItems.configBookItem(category));
+        if (!player.getInventory().add(book)) {
+            player.drop(book, false);
+        }
+        source.sendSuccess(() -> Component.literal(PREFIX + "выдана книга: " + category.displayName() + "."), false);
+        return 1;
     }
 
     private static int start(CommandSourceStack source) {
@@ -118,7 +140,7 @@ public final class ChaosCommands {
 
     private static int testPrank(CommandSourceStack source) {
         if (!ChaosSessionManager.forceMicroPrank(source.getServer())) {
-            source.sendFailure(Component.literal(PREFIX + "система не запущена или на сервере нет игроков."));
+            source.sendFailure(Component.literal(PREFIX + "система не запущена, нет игроков или все микроподлянки отключены."));
             return 0;
         }
         source.sendSuccess(() -> Component.literal(PREFIX + "случайная микроподлянка применена к одному игроку."), false);
@@ -137,7 +159,7 @@ public final class ChaosCommands {
 
     private static int testTrivia(CommandSourceStack source) {
         if (!ChaosSessionManager.forceTrivia(source.getServer())) {
-            source.sendFailure(Component.literal(PREFIX + "сначала запусти систему командой /chaos start."));
+            source.sendFailure(Component.literal(PREFIX + "система не запущена или все вопросы викторины отключены."));
             return 0;
         }
         source.sendSuccess(() -> Component.literal(PREFIX + "вопрос викторины запущен принудительно."), false);
@@ -146,7 +168,7 @@ public final class ChaosCommands {
 
     private static int testSwap(CommandSourceStack source) {
         if (!ChaosSessionManager.forceSpatialEvent(source.getServer())) {
-            source.sendFailure(Component.literal(PREFIX + "для пространственного сдвига система должна работать и нужны минимум два игрока."));
+            source.sendFailure(Component.literal(PREFIX + "для пространственного сдвига система должна работать, нужны минимум два игрока и ивент не должен быть отключён."));
             return 0;
         }
         source.sendSuccess(() -> Component.literal(PREFIX + "пространственный сдвиг запущен принудительно."), false);

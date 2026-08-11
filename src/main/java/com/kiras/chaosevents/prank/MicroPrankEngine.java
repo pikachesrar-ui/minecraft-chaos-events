@@ -1,5 +1,8 @@
 package com.kiras.chaosevents.prank;
 
+import com.kiras.chaosevents.config.ChaosConfigCategory;
+import com.kiras.chaosevents.config.ChaosConfigEntry;
+import com.kiras.chaosevents.config.ChaosConfigManager;
 import com.kiras.chaosevents.network.ChaosNetwork;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
@@ -22,6 +25,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -124,27 +128,34 @@ public final class MicroPrankEngine {
         if (target == null) return false;
 
         PrankType prank = choosePrank();
+        if (prank == null) return false;
         applyPrank(target, prank);
         announcePrank(server, target, prank);
         return true;
     }
 
     private static synchronized PrankType choosePrank() {
-        if (PRANKS.size() == 1) {
-            lastPrank = PRANKS.getFirst();
+        List<PrankType> enabled = PRANKS.stream()
+                .filter(prank -> ChaosConfigManager.isEnabled(ChaosConfigCategory.PRANK, prank.id()))
+                .toList();
+        if (enabled.isEmpty()) return null;
+
+        USED_PRANKS.removeIf(prank -> !enabled.contains(prank));
+        if (enabled.size() == 1) {
+            lastPrank = enabled.getFirst();
             USED_PRANKS.add(lastPrank);
             return lastPrank;
         }
 
-        boolean newCycle = USED_PRANKS.size() >= PRANKS.size();
+        boolean newCycle = enabled.stream().allMatch(USED_PRANKS::contains);
         if (newCycle) USED_PRANKS.clear();
 
-        List<PrankType> candidates = PRANKS.stream()
+        List<PrankType> candidates = enabled.stream()
                 .filter(prank -> !USED_PRANKS.contains(prank))
                 .filter(prank -> !newCycle || prank != lastPrank)
                 .toList();
         if (candidates.isEmpty()) {
-            candidates = PRANKS.stream().filter(prank -> !USED_PRANKS.contains(prank)).toList();
+            candidates = enabled.stream().filter(prank -> !USED_PRANKS.contains(prank)).toList();
         }
 
         PrankType selected = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
@@ -373,6 +384,12 @@ public final class MicroPrankEngine {
 
     public static int getRegisteredPrankCount() { return PRANKS.size(); }
 
+    public static List<ChaosConfigEntry> getConfigEntries() {
+        return PRANKS.stream()
+                .map(prank -> new ChaosConfigEntry(prank.id(), prank.displayName, prank.description))
+                .toList();
+    }
+
     private enum PrankType {
         SCREAMER_RAGE("Яростный скример", "на экране внезапно появился скример"),
         SCREAMER_VOID("Скример Бездны", "Бездна резко захватила экран"),
@@ -410,6 +427,10 @@ public final class MicroPrankEngine {
         PrankType(String displayName, String description) {
             this.displayName = displayName;
             this.description = description;
+        }
+
+        private String id() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 
