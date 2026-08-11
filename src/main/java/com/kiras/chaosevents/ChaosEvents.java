@@ -1,6 +1,8 @@
 package com.kiras.chaosevents;
 
 import com.kiras.chaosevents.command.ChaosCommands;
+import com.kiras.chaosevents.config.ChaosConfigCategory;
+import com.kiras.chaosevents.config.ChaosConfigManager;
 import com.kiras.chaosevents.core.ChaosSessionManager;
 import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
@@ -14,6 +16,7 @@ import com.kiras.chaosevents.spatial.SpatialSwapManager;
 import com.kiras.chaosevents.trivia.TriviaEngine;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
@@ -54,8 +57,9 @@ public final class ChaosEvents {
 
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
+        ChaosConfigManager.load();
         ChaosSessionManager.reset();
-        LOGGER.info("Chaos Events: server started; waiting for /chaos start");
+        LOGGER.info("Chaos Events: server started; settings loaded; waiting for /chaos start");
     }
 
     @SubscribeEvent
@@ -94,6 +98,19 @@ public final class ChaosEvents {
         if (!(event.getEntity() instanceof ServerPlayer player) || player.getServer() == null) {
             return;
         }
+
+        ChaosConfigCategory configCategory = ModItems.configCategory(player.getItemInHand(event.getHand()));
+        if (configCategory != null) {
+            if (!player.createCommandSourceStack().hasPermission(2)) {
+                player.sendSystemMessage(Component.literal("[Chaos Events] Только оператор сервера может менять настройки."));
+            } else {
+                ChaosNetwork.openConfigBook(player, configCategory);
+            }
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            event.setCanceled(true);
+            return;
+        }
+
         if (!player.getItemInHand(event.getHand()).is(ModItems.SPATIAL_ANCHOR.get())) {
             return;
         }
