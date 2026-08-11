@@ -36,8 +36,6 @@ public final class SpatialSwapManager {
 
     private static final int TICKS_PER_SECOND = 20;
     private static final int RETURN_WINDOW_TICKS = 10 * TICKS_PER_SECOND;
-    private static final int MIN_AUTOMATIC_SWAP_SECONDS = 15 * 60;
-    private static final int MAX_AUTOMATIC_SWAP_SECONDS = 20 * 60;
     private static final int AUTOMATIC_SWAP_RETRY_SECONDS = 60;
     private static final String PREFIX = "[Пространственный сдвиг] ";
 
@@ -77,7 +75,7 @@ public final class SpatialSwapManager {
         }
     }
 
-    /** Ticks return anchors and the independent 15-20 minute swap timer at normal Chaos Events speed. */
+    /** Ticks return anchors and the independent configurable swap timer at normal Chaos Events speed. */
     public static void tickSession(MinecraftServer server) {
         tickAnchorWindow(server);
 
@@ -298,10 +296,6 @@ public final class SpatialSwapManager {
         }
     }
 
-    private static void swapAllOnlinePlayers(MinecraftServer server) {
-        swapPlayers(server, new ArrayList<>(server.getPlayerList().getPlayers()));
-    }
-
     private static void swapCurrentParticipants(MinecraftServer server) {
         List<ServerPlayer> players;
         synchronized (SpatialSwapManager.class) {
@@ -387,10 +381,10 @@ public final class SpatialSwapManager {
             ticksUntilAutomaticSwap = 0;
             return;
         }
-        ticksUntilAutomaticSwap = ThreadLocalRandom.current().nextInt(
-                MIN_AUTOMATIC_SWAP_SECONDS,
-                MAX_AUTOMATIC_SWAP_SECONDS + 1
-        ) * TICKS_PER_SECOND;
+        int minSeconds = ChaosConfigManager.getMinIntervalSeconds(ChaosConfigCategory.SWAP);
+        int maxSeconds = ChaosConfigManager.getMaxIntervalSeconds(ChaosConfigCategory.SWAP);
+        ticksUntilAutomaticSwap = ThreadLocalRandom.current().nextInt(minSeconds, maxSeconds + 1)
+                * TICKS_PER_SECOND;
     }
 
     private static synchronized boolean isDiamondSwapAvailable() {
@@ -432,8 +426,8 @@ public final class SpatialSwapManager {
 
     public static List<ChaosConfigEntry> getConfigEntries() {
         return List.of(
-                new ChaosConfigEntry(CONFIG_AUTOMATIC_SWAP, "Плановый свап каждые 15–20 минут",
-                        "Периодически меняет местами всех игроков и выдаёт якоря возврата."),
+                new ChaosConfigEntry(CONFIG_AUTOMATIC_SWAP, "Плановый свап",
+                        "Периодически меняет местами всех игроков по настраиваемому интервалу и выдаёт якоря возврата."),
                 new ChaosConfigEntry(CONFIG_DIAMOND_SWAP, "Свап за первую алмазную руду",
                         "Один раз за сессию первая сломанная алмазная руда меняет игроков местами."),
                 new ChaosConfigEntry(CONFIG_BIG_EVENT_SWAP, "Большой ивент «Пространственный сдвиг»",

@@ -19,7 +19,9 @@ public final class ClientChaosConfigHandler {
         }
         Minecraft.getInstance().setScreen(new ChaosConfigScreen(
                 category,
-                ChaosConfigManager.decodeDisabled(payload.disabledIds())
+                ChaosConfigManager.decodeDisabled(payload.disabledIds()),
+                payload.minIntervalSeconds(),
+                payload.maxIntervalSeconds()
         ));
     }
 }

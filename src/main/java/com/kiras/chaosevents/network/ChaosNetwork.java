@@ -27,7 +27,7 @@ public final class ChaosNetwork {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        event.registrar("2")
+        event.registrar("3")
                 .playToClient(ScreamerPayload.TYPE, ScreamerPayload.STREAM_CODEC, ChaosNetwork::handleScreamer)
                 .playToClient(ConfigOpenPayload.TYPE, ConfigOpenPayload.STREAM_CODEC, ChaosNetwork::handleConfigOpen)
                 .playToClient(EventAnnouncementPayload.TYPE, EventAnnouncementPayload.STREAM_CODEC,
@@ -74,6 +74,15 @@ public final class ChaosNetwork {
                 return;
             }
 
+            int minInterval = payload.minIntervalSeconds();
+            int maxInterval = payload.maxIntervalSeconds();
+            if (minInterval < ChaosConfigCategory.MIN_ALLOWED_INTERVAL_SECONDS
+                    || maxInterval > ChaosConfigCategory.MAX_ALLOWED_INTERVAL_SECONDS
+                    || minInterval > maxInterval) {
+                player.sendSystemMessage(Component.literal(PREFIX + "некорректный диапазон интервала."));
+                return;
+            }
+
             Set<String> validIds = new HashSet<>();
             for (ChaosConfigEntry entry : ChaosConfigCatalog.entries(category)) {
                 validIds.add(entry.id());
@@ -81,12 +90,14 @@ public final class ChaosNetwork {
             Set<String> disabled = ChaosConfigManager.decodeDisabled(payload.disabledIds());
             disabled.retainAll(validIds);
             ChaosConfigManager.replaceDisabled(category, disabled);
+            ChaosConfigManager.setIntervalSeconds(category, minInterval, maxInterval);
             ChaosConfigManager.save();
 
             MinecraftServer server = player.getServer();
             boolean restarted = server != null && ChaosSessionManager.restartAfterConfigurationChange(server);
             player.sendSystemMessage(Component.literal(PREFIX + "настройки «" + category.displayName()
-                    + "» сохранены. " + (restarted
+                    + "» сохранены. Интервал: " + formatSeconds(minInterval) + "–" + formatSeconds(maxInterval) + ". "
+                    + (restarted
                     ? "Активная сессия Chaos Events перезапущена с новыми настройками."
                     : "Они будут применены при следующем /chaos start.")));
         });
@@ -99,11 +110,17 @@ public final class ChaosNetwork {
     public static void openConfigBook(ServerPlayer player, ChaosConfigCategory category) {
         PacketDistributor.sendToPlayer(player, new ConfigOpenPayload(
                 category.id(),
-                ChaosConfigManager.encodeDisabled(ChaosConfigManager.getDisabled(category))
+                ChaosConfigManager.encodeDisabled(ChaosConfigManager.getDisabled(category)),
+                ChaosConfigManager.getMinIntervalSeconds(category),
+                ChaosConfigManager.getMaxIntervalSeconds(category)
         ));
     }
 
     public static void sendEventAnnouncement(ServerPlayer player, String title, String description, int durationSeconds) {
         PacketDistributor.sendToPlayer(player, new EventAnnouncementPayload(title, description, durationSeconds));
+    }
+
+    private static String formatSeconds(int totalSeconds) {
+        return String.format("%d:%02d", totalSeconds / 60, totalSeconds % 60);
     }
 }

@@ -33,8 +33,6 @@ import java.util.concurrent.ThreadLocalRandom;
 /** Independent hidden timer for disruptive but nonlethal pranks aimed at one random player. */
 public final class MicroPrankEngine {
     private static final int TICKS_PER_SECOND = 20;
-    private static final int MIN_DELAY_SECONDS = 60;
-    private static final int MAX_DELAY_SECONDS = 3 * 60;
     private static final int HELD_ITEM_RETURN_TICKS = 4 * TICKS_PER_SECOND;
     private static final int SCREAMER_DURATION_TICKS = 3 * TICKS_PER_SECOND;
     private static final String PREFIX = "[Микроподлянка] ";
@@ -366,7 +364,9 @@ public final class MicroPrankEngine {
     }
 
     private static void scheduleNextPrank() {
-        ticksUntilNextPrank = ThreadLocalRandom.current().nextInt(MIN_DELAY_SECONDS, MAX_DELAY_SECONDS + 1)
+        int minSeconds = ChaosConfigManager.getMinIntervalSeconds(ChaosConfigCategory.PRANK);
+        int maxSeconds = ChaosConfigManager.getMaxIntervalSeconds(ChaosConfigCategory.PRANK);
+        ticksUntilNextPrank = ThreadLocalRandom.current().nextInt(minSeconds, maxSeconds + 1)
                 * TICKS_PER_SECOND;
     }
 

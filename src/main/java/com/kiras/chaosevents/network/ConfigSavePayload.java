@@ -7,7 +7,8 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-public record ConfigSavePayload(String category, String disabledIds) implements CustomPacketPayload {
+public record ConfigSavePayload(String category, String disabledIds, int minIntervalSeconds, int maxIntervalSeconds)
+        implements CustomPacketPayload {
     public static final Type<ConfigSavePayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(ChaosEvents.MODID, "config_save")
     );
@@ -17,6 +18,10 @@ public record ConfigSavePayload(String category, String disabledIds) implements 
             ConfigSavePayload::category,
             ByteBufCodecs.STRING_UTF8,
             ConfigSavePayload::disabledIds,
+            ByteBufCodecs.VAR_INT,
+            ConfigSavePayload::minIntervalSeconds,
+            ByteBufCodecs.VAR_INT,
+            ConfigSavePayload::maxIntervalSeconds,
             ConfigSavePayload::new
     );
 

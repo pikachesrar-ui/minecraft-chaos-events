@@ -20,8 +20,6 @@ import java.util.concurrent.ThreadLocalRandom;
 /** Owns the complete lifecycle: break -> event -> cleanup -> next break. */
 public final class BigEventEngine {
     private static final int TICKS_PER_SECOND = 20;
-    private static final int MIN_BREAK_SECONDS = 5 * 60;
-    private static final int MAX_BREAK_SECONDS = 10 * 60;
     private static final int MIN_NORMAL_DURATION_SECONDS = 4 * 60;
     private static final int MAX_NORMAL_DURATION_SECONDS = 8 * 60;
     private static final int MIN_HARSH_DURATION_SECONDS = 3 * 60;
@@ -354,7 +352,9 @@ public final class BigEventEngine {
     }
 
     private static void scheduleBreak() {
-        ticksRemaining = ThreadLocalRandom.current().nextInt(MIN_BREAK_SECONDS, MAX_BREAK_SECONDS + 1)
+        int minSeconds = ChaosConfigManager.getMinIntervalSeconds(ChaosConfigCategory.BIG);
+        int maxSeconds = ChaosConfigManager.getMaxIntervalSeconds(ChaosConfigCategory.BIG);
+        ticksRemaining = ThreadLocalRandom.current().nextInt(minSeconds, maxSeconds + 1)
                 * TICKS_PER_SECOND;
     }
 
