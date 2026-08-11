@@ -29,10 +29,10 @@ The session is controlled by an operator and does not start automatically. Use `
 
 ## Highlights
 
-- **Large chaos events** with a boss-bar timer, randomized breaks and no immediate repeats.
-- **Micro pranks** aimed at individual players every 1–3 minutes, designed to be disruptive without being deliberately lethal.
-- **Trivia rounds** every 6–12 minutes with a 15-second answer window, rewards and penalties for mistakes.
-- **Spatial swaps** that exchange online players between positions and dimensions, including a cooperative return-anchor mechanic.
+- **Large chaos events** with a boss-bar timer, configurable randomized breaks and no immediate repeats.
+- **Micro pranks** aimed at individual players on a configurable interval, designed to be disruptive without being deliberately lethal.
+- **Trivia rounds** on a configurable interval with a 15-second answer window, rewards and penalties for mistakes.
+- **Spatial swaps** that exchange online players between positions and dimensions, including a cooperative return-anchor mechanic and a configurable scheduled-swap timer.
 - **In-game content configuration** through four books that toggle individual events, pranks, trivia questions and swap triggers.
 - **Accelerated world event** that runs the world at 200 TPS while keeping players close to normal speed.
 - **Optional disaster integrations** for [Weather2](https://www.curseforge.com/minecraft/mc-mods/weather-storms-tornadoes) tornadoes and [Oh My, Meteors!](https://www.curseforge.com/minecraft/mc-mods/oh-my-meteors) meteor showers when those mods are installed.
@@ -81,11 +81,13 @@ All commands require permission level 2.
 
 ## In-game configuration
 
-An operator can obtain one of four configuration books with `/chaos book ...` and open it with right click. Each book presents a paged list with `ON`/`OFF` toggles. **Save** writes the selection to `config/chaosevents-settings.json`.
+An operator can obtain one of four configuration books with `/chaos book ...` and open it with right click. Each book presents a paged list with `ON`/`OFF` toggles plus minimum and maximum interval fields at the top. Time can be entered as `M:SS` or as a raw number of seconds. **Reset** restores the original range and **Save** writes the selection to `config/chaosevents-settings.json`.
 
-When a Chaos Events session is already active, saving settings cleanly clears temporary mechanics and restarts the internal chaos session with the newly enabled content. A full Minecraft or server restart is not required.
+The large-events book controls the break between large events; the prank book controls the delay between micro pranks; the trivia book controls the delay between questions; and the swap book controls the scheduled automatic player-swap interval. The accepted range is 10 seconds through 6 hours. These fields do not change the duration of an already active large event.
 
-The swap book can independently disable the scheduled 15–20 minute swap, the one-time first-diamond-ore swap, and the Spatial Swap large event.
+When a Chaos Events session is already active, saving settings cleanly clears temporary mechanics and restarts the internal chaos session with the newly enabled content and timer ranges. A full Minecraft or server restart is not required.
+
+The swap book can also independently disable the scheduled swap, the one-time first-diamond-ore swap, and the Spatial Swap large event.
 
 ## Build from source
 
