@@ -1,5 +1,8 @@
 package com.kiras.chaosevents.trivia;
 
+import com.kiras.chaosevents.config.ChaosConfigCategory;
+import com.kiras.chaosevents.config.ChaosConfigEntry;
+import com.kiras.chaosevents.config.ChaosConfigManager;
 import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -13,6 +16,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -32,7 +36,7 @@ public final class TriviaEngine {
     private static boolean active;
     private static TriviaQuestion currentQuestion;
     private static int ticksRemaining;
-    private static int lastQuestionIndex = -1;
+    private static String lastQuestionId;
 
     private TriviaEngine() {
     }
@@ -41,6 +45,7 @@ public final class TriviaEngine {
         active = true;
         currentQuestion = null;
         WRONG_ANSWER_PUNISHED.clear();
+        lastQuestionId = null;
         scheduleNextQuestion();
     }
 
@@ -72,7 +77,11 @@ public final class TriviaEngine {
         }
 
         if (startQuestion) {
-            beginRandomQuestion(server);
+            if (!beginRandomQuestion(server)) {
+                synchronized (TriviaEngine.class) {
+                    scheduleNextQuestion();
+                }
+            }
         } else if (timedOut != null) {
             broadcast(server, "Время вышло. Правильный ответ: " + timedOut.primaryAnswer());
             applyHiddenGroupPunishment(server);
@@ -90,7 +99,7 @@ public final class TriviaEngine {
         active = false;
         currentQuestion = null;
         ticksRemaining = 0;
-        lastQuestionIndex = -1;
+        lastQuestionId = null;
         WRONG_ANSWER_PUNISHED.clear();
     }
 
@@ -102,8 +111,7 @@ public final class TriviaEngine {
             currentQuestion = null;
             WRONG_ANSWER_PUNISHED.clear();
         }
-        beginRandomQuestion(server);
-        return true;
+        return beginRandomQuestion(server);
     }
 
     /** Every chat message during a question is treated as an answer and hidden from normal chat. */
@@ -149,21 +157,35 @@ public final class TriviaEngine {
         return true;
     }
 
-    private static void beginRandomQuestion(MinecraftServer server) {
+    private static boolean beginRandomQuestion(MinecraftServer server) {
         TriviaQuestion selected;
 
         synchronized (TriviaEngine.class) {
             if (!active || QUESTIONS.isEmpty()) {
-                return;
+                return false;
             }
 
-            int index;
-            do {
-                index = ThreadLocalRandom.current().nextInt(QUESTIONS.size());
-            } while (QUESTIONS.size() > 1 && index == lastQuestionIndex);
+            List<TriviaQuestion> enabled = QUESTIONS.stream()
+                    .filter(question -> ChaosConfigManager.isEnabled(
+                            ChaosConfigCategory.TRIVIA, configId(question)))
+                    .toList();
+            if (enabled.isEmpty()) {
+                currentQuestion = null;
+                return false;
+            }
 
-            lastQuestionIndex = index;
-            selected = QUESTIONS.get(index);
+            List<TriviaQuestion> candidates = enabled;
+            if (enabled.size() > 1 && lastQuestionId != null) {
+                List<TriviaQuestion> withoutLast = enabled.stream()
+                        .filter(question -> !configId(question).equals(lastQuestionId))
+                        .toList();
+                if (!withoutLast.isEmpty()) {
+                    candidates = withoutLast;
+                }
+            }
+
+            selected = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+            lastQuestionId = configId(selected);
             currentQuestion = selected;
             ticksRemaining = ANSWER_WINDOW_TICKS;
             WRONG_ANSWER_PUNISHED.clear();
@@ -175,6 +197,7 @@ public final class TriviaEngine {
         server.getPlayerList().getPlayers().forEach(player ->
                 player.serverLevel().playSound(null, player.blockPosition(), SoundEvents.NOTE_BLOCK_BELL.value(),
                         SoundSource.PLAYERS, 1.0F, 1.15F));
+        return true;
     }
 
     private static RewardResult reward(ServerPlayer player) {
@@ -308,6 +331,22 @@ public final class TriviaEngine {
 
     public static int getQuestionCount() {
         return QUESTIONS.size();
+    }
+
+    public static List<ChaosConfigEntry> getConfigEntries() {
+        List<ChaosConfigEntry> result = new ArrayList<>(QUESTIONS.size());
+        for (TriviaQuestion question : QUESTIONS) {
+            result.add(new ChaosConfigEntry(
+                    configId(question),
+                    question.prompt(),
+                    "Категория: " + question.category()
+            ));
+        }
+        return List.copyOf(result);
+    }
+
+    private static String configId(TriviaQuestion question) {
+        return question.category() + "::" + question.prompt();
     }
 
     private static String format(int seconds) {
