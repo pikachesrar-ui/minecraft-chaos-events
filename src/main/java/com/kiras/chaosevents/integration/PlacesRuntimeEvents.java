@@ -48,6 +48,9 @@ public final class PlacesRuntimeEvents {
         if (state == ChaosSessionManager.State.RUNNING
                 && AcceleratedTimeEvent.INSTANCE.shouldTickAuxiliarySystems()) {
             PlacesRealitySlipManager.tick(event.getServer());
+        } else {
+            // Returning a player after 5-10 real minutes is a safety mechanic, not a chaos timer.
+            PlacesRealitySlipManager.tickPendingReturns(event.getServer());
         }
 
         lastState = state;
