@@ -107,12 +107,13 @@ public final class PlacesRealitySlipManager {
         ACTIVE_SLIPS.clear();
     }
 
+    /** Runs hidden trigger scheduling plus safety returns. Call only at normal Chaos auxiliary speed. */
     public static void tick(MinecraftServer server) {
         if (!isPlacesLoaded()) {
             return;
         }
 
-        tickAutomaticReturns(server);
+        tickPendingReturns(server);
 
         synchronized (PlacesRealitySlipManager.class) {
             if (!sessionActive) {
@@ -140,6 +141,17 @@ public final class PlacesRealitySlipManager {
         if (scheduled) {
             tryScheduledSlip(server);
         }
+    }
+
+    /**
+     * Checks already-active 5-10 minute returns using wall-clock time. This is intentionally safe
+     * to call while Chaos Events is paused or the accelerated-world event suppresses auxiliary systems.
+     */
+    public static void tickPendingReturns(MinecraftServer server) {
+        if (!isPlacesLoaded()) {
+            return;
+        }
+        tickAutomaticReturns(server);
     }
 
     /** Called from the shared right-click-item event. Returns true when the normal item use should be cancelled. */
@@ -196,11 +208,12 @@ public final class PlacesRealitySlipManager {
     }
 
     private static void tickAutomaticReturns(MinecraftServer server) {
+        long now = System.currentTimeMillis();
         List<UUID> due = new ArrayList<>();
         List<UUID> escaped = new ArrayList<>();
 
         synchronized (PlacesRealitySlipManager.class) {
-            for (Map.Entry<UUID, SlipRecord> entry : new ArrayList<>(ACTIVE_SLIPS.entrySet())) {
+            for (Map.Entry<UUID, SlipRecord> entry : ACTIVE_SLIPS.entrySet()) {
                 UUID id = entry.getKey();
                 ServerPlayer player = server.getPlayerList().getPlayer(id);
 
@@ -208,15 +221,10 @@ public final class PlacesRealitySlipManager {
                     escaped.add(id);
                     continue;
                 }
-
-                SlipRecord record = entry.getValue();
-                int next = Math.max(0, record.remainingTicks() - 1);
-                ACTIVE_SLIPS.put(id, new SlipRecord(record.origin(), next));
-                if (next <= 0) {
+                if (now >= entry.getValue().returnAtMillis()) {
                     due.add(id);
                 }
             }
-
             for (UUID id : escaped) {
                 ACTIVE_SLIPS.remove(id);
             }
@@ -361,14 +369,15 @@ public final class PlacesRealitySlipManager {
             return false;
         }
 
-        int returnDelayTicks = randomReturnDelayTicks();
+        int returnDelaySeconds = randomReturnDelaySeconds();
+        long returnAtMillis = System.currentTimeMillis() + returnDelaySeconds * 1000L;
         synchronized (PlacesRealitySlipManager.class) {
-            ACTIVE_SLIPS.put(player.getUUID(), new SlipRecord(origin, returnDelayTicks));
+            ACTIVE_SLIPS.put(player.getUUID(), new SlipRecord(origin, returnAtMillis));
             lastTarget = player.getUUID();
             triggerCooldownTicks = TRIGGER_COOLDOWN_SECONDS * TICKS_PER_SECOND;
         }
         ChaosEvents.LOGGER.info("Places reality slip triggered for {} ({}), automatic return in {} seconds",
-                player.getGameProfile().getName(), reason, returnDelayTicks / TICKS_PER_SECOND);
+                player.getGameProfile().getName(), reason, returnDelaySeconds);
         return true;
     }
 
@@ -440,9 +449,8 @@ public final class PlacesRealitySlipManager {
                 * TICKS_PER_SECOND;
     }
 
-    private static int randomReturnDelayTicks() {
-        return ThreadLocalRandom.current().nextInt(RETURN_MIN_SECONDS, RETURN_MAX_SECONDS + 1)
-                * TICKS_PER_SECOND;
+    private static int randomReturnDelaySeconds() {
+        return ThreadLocalRandom.current().nextInt(RETURN_MIN_SECONDS, RETURN_MAX_SECONDS + 1);
     }
 
     private static String formatSeconds(int seconds) {
@@ -451,7 +459,7 @@ public final class PlacesRealitySlipManager {
         return String.format("%d:%02d", minutes, remainder);
     }
 
-    private record SlipRecord(StoredPosition origin, int remainingTicks) {
+    private record SlipRecord(StoredPosition origin, long returnAtMillis) {
     }
 
     private record StoredPosition(ResourceKey<Level> dimension, double x, double y, double z, float yaw, float pitch) {
