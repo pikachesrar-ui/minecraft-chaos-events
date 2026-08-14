@@ -7,6 +7,7 @@ import com.kiras.chaosevents.network.ChaosNetwork;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.BossEvent;
@@ -259,7 +260,7 @@ public final class BigEventEngine {
                         + " (" + formatSeconds(durationSeconds) + ")"
         );
 
-        server.getPlayerList().getPlayers().forEach(player -> {
+        BigEventPlayerPolicy.eligiblePlayers(server).forEach(player -> {
             ChaosNetwork.sendEventAnnouncement(player, event.displayName(), description, durationSeconds);
             player.playNotifySound(SoundEvents.WITHER_SPAWN, SoundSource.MASTER, 0.85F, 1.0F);
             player.sendSystemMessage(chatMessage);
@@ -279,7 +280,6 @@ public final class BigEventEngine {
             case "time_acceleration" -> "Мир ускорен в 10 раз, но игроки и их транспорт остаются в обычном времени";
             case "total_darkness" -> "Тьма и слепота скрывают всё вокруг";
             case "hunters_mark" -> "Игроки отмечены и становятся целью мобов";
-            case "life_drain" -> "Иссушение постепенно отнимает здоровье";
             case "toxic_air" -> "Ядовитый воздух действует только под открытым небом";
             case "famine" -> "Сытость быстро исчезает";
             case "skyhook" -> "Небо регулярно утягивает игроков вверх";
@@ -296,7 +296,6 @@ public final class BigEventEngine {
             case "infernal_hunger" -> "Ад высасывает сытость и силу";
             case "blaze_swarm" -> "Ифриты атакуют регулярными волнами";
             case "magma_march" -> "Магмовые кубы заполняют окрестности";
-            case "withered_air" -> "Воздух Незера вызывает иссушение";
             case "soul_crush" -> "Души давят тьмой и слабостью";
             case "firestorm" -> "Огненные вспышки постоянно поджигают";
             case "piglin_hunt" -> "Жестокие пиглины начинают охоту";
@@ -378,7 +377,8 @@ public final class BigEventEngine {
         EVENT_TIMER.setName(Component.literal(event.displayName() + " • осталось " + formatSeconds(seconds)));
         EVENT_TIMER.setProgress(Math.max(0.0F, Math.min(1.0F, (float) remaining / total)));
         EVENT_TIMER.setVisible(true);
-        server.getPlayerList().getPlayers().forEach(EVENT_TIMER::addPlayer);
+        EVENT_TIMER.removeAllPlayers();
+        BigEventPlayerPolicy.eligiblePlayers(server).forEach(EVENT_TIMER::addPlayer);
     }
 
     private static void hideBossBar() {
@@ -388,7 +388,32 @@ public final class BigEventEngine {
 
     private static void broadcast(MinecraftServer server, String text) {
         Component message = Component.literal(PREFIX + text);
-        server.getPlayerList().getPlayers().forEach(player -> player.sendSystemMessage(message));
+        BigEventPlayerPolicy.eligiblePlayers(server).forEach(player -> player.sendSystemMessage(message));
+    }
+
+    /** Immediately detaches one Places player without interrupting the event for everyone else. */
+    public static void excludePlayer(MinecraftServer server, ServerPlayer player) {
+        ChaosEvent event;
+        synchronized (BigEventEngine.class) {
+            event = phase == Phase.ACTIVE ? activeEvent : null;
+        }
+        EVENT_TIMER.removePlayer(player);
+        if (event != null) {
+            event.excludePlayer(server, player);
+        }
+    }
+
+    /** Reattaches a player who has left Places to the still-active event. */
+    public static void includePlayer(MinecraftServer server, ServerPlayer player) {
+        if (!BigEventPlayerPolicy.canAffect(player)) return;
+        ChaosEvent event;
+        synchronized (BigEventEngine.class) {
+            event = phase == Phase.ACTIVE ? activeEvent : null;
+        }
+        if (event != null) {
+            EVENT_TIMER.addPlayer(player);
+            event.includePlayer(server, player);
+        }
     }
 
     public static synchronized Phase getPhase() { return phase; }

@@ -191,7 +191,7 @@ public enum InternetChaosEvent implements ChaosEvent {
 
     @Override
     public boolean isEligible(MinecraftServer server) {
-        if (server.getPlayerList().getPlayers().isEmpty()) return false;
+        if (!BigEventPlayerPolicy.hasEligiblePlayer(server)) return false;
         return switch (this) {
             case ACID_RAIN, CLEAR_SKIES, RISK_OF_RAIN -> server.overworld() != null;
             case THE_END -> server.getLevel(Level.END) != null;
@@ -420,6 +420,62 @@ public enum InternetChaosEvent implements ChaosEvent {
         hungrySlimes.clear();
     }
 
+    @Override
+    public void excludePlayer(MinecraftServer server, ServerPlayer player) {
+        switch (this) {
+            case GAMEMODE_TWO -> {
+                GameType previous = previousGameModes.remove(player.getUUID());
+                if (previous != null) player.setGameMode(previous);
+            }
+            case THE_END -> storedPositions.remove(player.getUUID());
+            case ADRENALINE_RUSH -> removeEffects(player,
+                    MobEffects.MOVEMENT_SPEED, MobEffects.DAMAGE_BOOST, MobEffects.DIG_SPEED);
+            case EXTRA_HEALTH -> removeEffects(player, MobEffects.HEALTH_BOOST);
+            case LAUNCH_PLAYER_UP -> removeEffects(player,
+                    MobEffects.SLOW_FALLING, MobEffects.DAMAGE_RESISTANCE);
+            case BOIL_WATER_NOTICE, POISON_ATTACK -> removeEffects(player, MobEffects.POISON);
+            case CURSED -> removeEffects(player, MobEffects.UNLUCK);
+            case INVISIBLE_WORLD -> removeEffects(player, MobEffects.INVISIBILITY);
+            case FAMINE_TWO -> removeEffects(player, MobEffects.HUNGER);
+            case FIRE_SKIN -> removeEffects(player, MobEffects.FIRE_RESISTANCE);
+            case GLOWING -> removeEffects(player, MobEffects.GLOWING);
+            case I_CANT_SEE -> removeEffects(player, MobEffects.NIGHT_VISION, MobEffects.BLINDNESS);
+            case INVULNERABLE -> removeEffects(player, MobEffects.DAMAGE_RESISTANCE);
+            case LOW_GRAVITY -> removeEffects(player, MobEffects.JUMP, MobEffects.SLOW_FALLING);
+            case I_CAN_SEE -> removeEffects(player, MobEffects.NIGHT_VISION);
+            case ONE_WITH_THE_SEA -> removeEffects(player,
+                    MobEffects.CONDUIT_POWER, MobEffects.WATER_BREATHING, MobEffects.DOLPHINS_GRACE);
+            case PLAGUE -> removeEffects(player,
+                    MobEffects.MOVEMENT_SLOWDOWN, MobEffects.DIG_SLOWDOWN,
+                    MobEffects.WEAKNESS, MobEffects.WITHER);
+            case SCULK_PRANK -> removeEffects(player, MobEffects.DARKNESS);
+            case SUGAR_RUSH -> removeEffects(player, MobEffects.MOVEMENT_SPEED);
+            case WUNGUS -> removeEffects(player, MobEffects.REGENERATION);
+            case YOU_FEEL_SICK -> removeEffects(player, MobEffects.CONFUSION);
+            case RED_LIGHT -> removeEffects(player,
+                    MobEffects.MOVEMENT_SLOWDOWN, MobEffects.DIG_SLOWDOWN, MobEffects.MOVEMENT_SPEED);
+            case TELEPORT_PLAYERS -> removeEffects(player,
+                    MobEffects.DAMAGE_RESISTANCE, MobEffects.SLOW_FALLING, MobEffects.FIRE_RESISTANCE);
+            default -> { }
+        }
+    }
+
+    @Override
+    public void includePlayer(MinecraftServer server, ServerPlayer player) {
+        switch (this) {
+            case GAMEMODE_TWO -> {
+                previousGameModes.putIfAbsent(player.getUUID(), player.gameMode.getGameModeForPlayer());
+                player.setGameMode(GameType.ADVENTURE);
+            }
+            case EXTRA_HEALTH -> {
+                int amplifier = ThreadLocalRandom.current().nextInt(10) == 0 ? 9 : 4;
+                effect(player, MobEffects.HEALTH_BOOST, 20 * maxDurationSeconds + 40, amplifier);
+                player.heal(player.getMaxHealth());
+            }
+            default -> { }
+        }
+    }
+
     public static void onFoodConsumed(ServerPlayer player) {
         if (!FOOD_RECALL.running) return;
         List<Holder<MobEffect>> effects = List.of(
@@ -433,13 +489,17 @@ public enum InternetChaosEvent implements ChaosEvent {
     }
 
     private static void forPlayers(MinecraftServer server, Consumer<ServerPlayer> action) {
-        server.getPlayerList().getPlayers().forEach(action);
+        BigEventPlayerPolicy.eligiblePlayers(server).forEach(action);
     }
 
     private static void forLiving(MinecraftServer server, Consumer<LivingEntity> action) {
         for (ServerLevel level : server.getAllLevels()) {
             for (Entity entity : level.getAllEntities()) {
-                if (entity instanceof LivingEntity living && living.isAlive()) action.accept(living);
+                if (entity instanceof LivingEntity living
+                        && living.isAlive()
+                        && (!(living instanceof ServerPlayer player) || BigEventPlayerPolicy.canAffect(player))) {
+                    action.accept(living);
+                }
             }
         }
     }
@@ -452,6 +512,11 @@ public enum InternetChaosEvent implements ChaosEvent {
 
     private static void effect(LivingEntity entity, Holder<MobEffect> effect, int duration, int amplifier) {
         entity.addEffect(new MobEffectInstance(effect, duration, amplifier, false, false, true));
+    }
+
+    @SafeVarargs
+    private static void removeEffects(ServerPlayer player, Holder<MobEffect>... effects) {
+        for (Holder<MobEffect> effect : effects) player.removeEffect(effect);
     }
 
     private static void giveAll(MinecraftServer server, ItemStack stack) {
@@ -764,7 +829,7 @@ public enum InternetChaosEvent implements ChaosEvent {
     }
 
     private void sendRandomPlayerToEnd(MinecraftServer server) {
-        List<ServerPlayer> players = server.getPlayerList().getPlayers();
+        List<ServerPlayer> players = BigEventPlayerPolicy.eligiblePlayers(server);
         if (players.isEmpty()) return;
         ServerPlayer player = players.get(ThreadLocalRandom.current().nextInt(players.size()));
         ServerLevel end = server.getLevel(Level.END);
@@ -884,7 +949,7 @@ public enum InternetChaosEvent implements ChaosEvent {
     }
 
     private static void smiteRandomPlayer(MinecraftServer server) {
-        List<ServerPlayer> players = server.getPlayerList().getPlayers();
+        List<ServerPlayer> players = BigEventPlayerPolicy.eligiblePlayers(server);
         if (players.isEmpty()) return;
         ServerPlayer player = players.get(ThreadLocalRandom.current().nextInt(players.size()));
         runAtPlayer(player, "summon minecraft:lightning_bolt ~ ~ ~");

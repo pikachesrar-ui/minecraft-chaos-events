@@ -1,6 +1,7 @@
 package com.kiras.chaosevents.event;
 
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Contract for one timed global Chaos Events event.
@@ -32,6 +33,14 @@ public interface ChaosEvent {
 
     /** Called when a paused Chaos Events session resumes. */
     default void resume(MinecraftServer server) {
+    }
+
+    /** Called when one player becomes isolated from this event by entering Places. */
+    default void excludePlayer(MinecraftServer server, ServerPlayer player) {
+    }
+
+    /** Called when a previously isolated Places player returns while this event is still active. */
+    default void includePlayer(MinecraftServer server, ServerPlayer player) {
     }
 
     /** Number of event-engine ticks that represent one displayed second. */

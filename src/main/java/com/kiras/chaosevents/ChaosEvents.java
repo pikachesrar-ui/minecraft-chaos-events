@@ -82,11 +82,9 @@ public final class ChaosEvents {
     @SubscribeEvent
     public void onBlockBroken(BlockEvent.BreakEvent event) {
         if (event.getPlayer() instanceof ServerPlayer player && player.getServer() != null) {
-            // Spatial and large-event block hooks are suspended while someone is inside Places.
-            if (!PlacesRealitySlipManager.hasAnyPlayerInPlaces(player.getServer())) {
-                SpatialSwapManager.onBlockBroken(player.getServer(), player, event.getState());
-            }
+            // Only the player inside Places is isolated; everyone else keeps normal event hooks.
             if (!PlacesRealitySlipManager.isInPlacesDimension(player)) {
+                SpatialSwapManager.onBlockBroken(player.getServer(), player, event.getState());
                 ExpandedChaosEvent.onBlockBroken(player, event.getPos());
             }
         }

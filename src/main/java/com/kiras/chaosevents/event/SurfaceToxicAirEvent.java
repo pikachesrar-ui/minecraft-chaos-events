@@ -45,7 +45,7 @@ public final class SurfaceToxicAirEvent implements ChaosEvent {
 
     @Override
     public boolean isEligible(MinecraftServer server) {
-        return !server.getPlayerList().getPlayers().isEmpty();
+        return BigEventPlayerPolicy.hasEligiblePlayer(server);
     }
 
     @Override
@@ -58,7 +58,7 @@ public final class SurfaceToxicAirEvent implements ChaosEvent {
         if (elapsedTicks % REFRESH_INTERVAL_TICKS != 0) return;
 
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (player.isSpectator()) {
+            if (!BigEventPlayerPolicy.canAffect(player) || player.isSpectator()) {
                 clearEventEffects(player);
                 continue;
             }
@@ -79,6 +79,11 @@ public final class SurfaceToxicAirEvent implements ChaosEvent {
             clearEventEffects(player);
         }
         affectedPlayers.clear();
+    }
+
+    @Override
+    public void excludePlayer(MinecraftServer server, ServerPlayer player) {
+        clearEventEffects(player);
     }
 
     private static boolean isExposedToSky(ServerPlayer player) {

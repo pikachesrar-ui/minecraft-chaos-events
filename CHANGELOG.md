@@ -15,6 +15,33 @@ Notable changes to Chaos Events are documented here. The project follows [Semant
 - Replaced NeoForge template metadata with project-specific information.
 - Adopted the MIT License for the public project.
 
+## [0.3.3] — 2026-08-14
+
+### Changed
+
+- Removed the long-running `Life Drain` and `Withered Air` big events.
+- Added a short `Wither Burst` micro-prank that applies Wither I for a random 5–10 seconds.
+- Players inside any Places dimension are now explicitly rejected from every spatial-swap stage;
+  swaps wait when fewer than two eligible players remain and continue among the remaining players otherwise.
+- Reduced automatic Places stays from 5–10 minutes to 3–9 real-time minutes.
+
+## [0.3.2] — 2026-08-14
+
+### Changed
+
+- Places isolation is now per player: large events continue normally for players outside Places.
+- Players inside any `places:*` dimension are removed from large-event targeting, announcements,
+  boss bars and spatial swaps until they return.
+- Places entity simulation remains at normal speed during the global accelerated-time event.
+- Native Places door entries now receive the same automatic 5–10 minute return to the exact
+  pre-entry position as Chaos Events reality slips.
+
+### Fixed
+
+- Active long-duration large-event effects and temporary game-mode changes are cleared immediately
+  when the affected player enters Places.
+- Leaving Places through a native exit now cancels only that player's pending automatic return.
+
 ## [0.1.0] — development preview
 
 ### Added

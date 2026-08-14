@@ -19,7 +19,7 @@ public final class ChaosSessionManager {
     public static synchronized boolean start(MinecraftServer server) {
         if (state != State.STOPPED) return false;
         state = State.RUNNING;
-        startEngines();
+        startEngines(server);
         return true;
     }
 
@@ -62,7 +62,7 @@ public final class ChaosSessionManager {
 
         stopEngines(server);
         state = State.RUNNING;
-        startEngines();
+        startEngines(server);
         if (previousState == State.PAUSED) {
             BigEventEngine.pauseActiveEvent(server);
             state = State.PAUSED;
@@ -98,26 +98,13 @@ public final class ChaosSessionManager {
             if (state != State.RUNNING) return;
         }
 
-        boolean playerInPlaces = PlacesRealitySlipManager.hasAnyPlayerInPlaces(server);
-        if (playerInPlaces) {
-            // A large event may have started before the player crossed into Places. Stop it cleanly
-            // and freeze the large-event break while any player remains in a Places dimension.
-            BigEventEngine.skipActiveEvent(server);
-        } else {
-            BigEventEngine.tick(server);
-        }
+        // Every large event filters Places players individually. The shared event timeline keeps
+        // running for players in ordinary dimensions.
+        BigEventEngine.tick(server);
 
         if (AcceleratedTimeEvent.INSTANCE.shouldTickAuxiliarySystems()) {
             PlacesRealitySlipManager.tick(server);
-
-            // A hidden Places trigger may have fired just above. End a previously running large
-            // event immediately, before another server tick can apply it in the foreign dimension.
-            playerInPlaces = PlacesRealitySlipManager.hasAnyPlayerInPlaces(server);
-            if (playerInPlaces) {
-                BigEventEngine.skipActiveEvent(server);
-            } else {
-                SpatialSwapManager.tickSession(server);
-            }
+            SpatialSwapManager.tickSession(server);
 
             MicroPrankEngine.tick(server);
             TriviaEngine.tick(server);
@@ -126,7 +113,6 @@ public final class ChaosSessionManager {
 
     public static synchronized boolean forceBigEvent(MinecraftServer server) {
         return state == State.RUNNING
-                && !PlacesRealitySlipManager.hasAnyPlayerInPlaces(server)
                 && BigEventEngine.forceRandomEvent(server);
     }
 
@@ -136,13 +122,11 @@ public final class ChaosSessionManager {
 
     public static synchronized boolean forceSpatialEvent(MinecraftServer server) {
         return state == State.RUNNING
-                && !PlacesRealitySlipManager.hasAnyPlayerInPlaces(server)
                 && BigEventEngine.forceSpatialEvent(server);
     }
 
     public static synchronized boolean forceAcceleratedTimeEvent(MinecraftServer server) {
         return state == State.RUNNING
-                && !PlacesRealitySlipManager.hasAnyPlayerInPlaces(server)
                 && BigEventEngine.forceAcceleratedTimeEvent(server);
     }
 
@@ -171,12 +155,12 @@ public final class ChaosSessionManager {
     public static String getTriviaStatus() { return TriviaEngine.getStatusText(); }
     public static String getSpatialStatus() { return SpatialSwapManager.getStatusText(); }
 
-    private static void startEngines() {
+    private static void startEngines(MinecraftServer server) {
         BigEventEngine.startSession();
         MicroPrankEngine.startSession();
         TriviaEngine.startSession();
         SpatialSwapManager.startSession();
-        PlacesRealitySlipManager.startSession();
+        PlacesRealitySlipManager.startSession(server);
     }
 
     private static void stopEngines(MinecraftServer server) {

@@ -225,6 +225,12 @@ public final class MicroPrankEngine {
                 effect(player, MobEffects.BLINDNESS, 55, 0);
                 effect(player, MobEffects.CONFUSION, 70, 0);
             }
+            case WITHER_BURST -> effect(
+                    player,
+                    MobEffects.WITHER,
+                    ThreadLocalRandom.current().nextInt(5, 11) * TICKS_PER_SECOND,
+                    0
+            );
             case FAKE_TELEPORT -> ExpandedPrankEffects.fakeTeleport(player, false);
             case FAKE_FAKE_TELEPORT -> ExpandedPrankEffects.fakeTeleport(player, true);
             case HAUNTED_CHESTS -> ExpandedPrankEffects.hauntedContainers(player);
@@ -405,6 +411,7 @@ public final class MicroPrankEngine {
         SLOW_TRAP("Ловушка замедления", "движение и добыча сильно замедлились"),
         INVENTORY_JIGGLE("Инвентарная встряска", "хотбар и руки перемешались"),
         CREEPER_PANIC("Крипер-паника", "раздалось безопасное шипение и экран ослеп"),
+        WITHER_BURST("Приступ иссушения", "игрок получил иссушение на 5–10 секунд"),
         FAKE_TELEPORT("Фальшивый телепорт", "игрок на несколько секунд оказался в невозможном месте"),
         FAKE_FAKE_TELEPORT("Двойной обман", "возвращение после телепорта оказалось неточным"),
         HAUNTED_CHESTS("Голодные сундуки", "вокруг начали хлопать невидимые сундуки"),

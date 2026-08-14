@@ -1,6 +1,7 @@
 package com.kiras.chaosevents.integration;
 
 import com.kiras.chaosevents.ChaosEvents;
+import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.spatial.SpatialSwapManager;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -25,6 +26,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,10 +37,11 @@ import java.util.concurrent.ThreadLocalRandom;
  * Optional runtime bridge for Places 0.4.9 on NeoForge 1.21.1.
  *
  * <p>When Places is present, a running Chaos Events session can cause rare, deliberately
- * unannounced reality slips into Places. A player moved by Chaos Events is returned to the exact
- * origin after a random 5-10 minute wall-clock stay. Leaving Places through one of its own exits
- * cancels that pending return. Lethal damage during a managed slip also returns the player instead
- * of allowing the fatal hit to be applied.</p>
+ * unannounced reality slips into Places. Every player entering Places while the session is active,
+ * including through native Places doors, is returned to the exact pre-entry origin after a random
+ * 3-9 minute wall-clock stay. Leaving Places through one of its own exits cancels that player's
+ * pending return. Lethal damage during a managed stay also returns the player instead of allowing
+ * the fatal hit to be applied.</p>
  */
 public final class PlacesRealitySlipManager {
     private static final String PLACES_MOD_ID = "places";
@@ -51,8 +54,8 @@ public final class PlacesRealitySlipManager {
     private static final int SCHEDULED_MAX_SECONDS = 120 * 60;
     private static final int SCHEDULE_RETRY_SECONDS = 60;
     private static final int TRIGGER_COOLDOWN_SECONDS = 10 * 60;
-    private static final int RETURN_MIN_SECONDS = 5 * 60;
-    private static final int RETURN_MAX_SECONDS = 10 * 60;
+    private static final int RETURN_MIN_SECONDS = 3 * 60;
+    private static final int RETURN_MAX_SECONDS = 9 * 60;
     private static final int DEEP_CAVE_CHECK_SECONDS = 20;
 
     private static final int ENDER_PEARL_CHANCE = 100;
@@ -66,6 +69,8 @@ public final class PlacesRealitySlipManager {
     );
 
     private static final Map<UUID, SlipRecord> ACTIVE_SLIPS = new HashMap<>();
+    private static final Map<UUID, StoredPosition> LAST_NON_PLACES_POSITIONS = new HashMap<>();
+    private static final Set<UUID> PLAYERS_IN_PLACES = new HashSet<>();
 
     private static boolean sessionActive;
     private static int ticksUntilScheduledSlip;
@@ -78,12 +83,22 @@ public final class PlacesRealitySlipManager {
     private PlacesRealitySlipManager() {
     }
 
-    public static synchronized void startSession() {
+    public static synchronized void startSession(MinecraftServer server) {
         sessionActive = true;
         ticksUntilScheduledSlip = randomScheduledDelayTicks();
         triggerCooldownTicks = 0;
         deepCaveCheckTicks = DEEP_CAVE_CHECK_SECONDS * TICKS_PER_SECOND;
         lastTarget = null;
+        ACTIVE_SLIPS.clear();
+        LAST_NON_PLACES_POSITIONS.clear();
+        PLAYERS_IN_PLACES.clear();
+        if (isPlacesLoaded()) {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                if (!isInPlacesDimension(player)) {
+                    LAST_NON_PLACES_POSITIONS.put(player.getUUID(), StoredPosition.capture(player));
+                }
+            }
+        }
     }
 
     public static void stopSession(MinecraftServer server) {
@@ -95,6 +110,8 @@ public final class PlacesRealitySlipManager {
             deepCaveCheckTicks = 0;
             lastTarget = null;
             ACTIVE_SLIPS.clear();
+            LAST_NON_PLACES_POSITIONS.clear();
+            PLAYERS_IN_PLACES.clear();
         }
     }
 
@@ -105,6 +122,8 @@ public final class PlacesRealitySlipManager {
         deepCaveCheckTicks = 0;
         lastTarget = null;
         ACTIVE_SLIPS.clear();
+        LAST_NON_PLACES_POSITIONS.clear();
+        PLAYERS_IN_PLACES.clear();
     }
 
     /** Runs only hidden trigger scheduling. Safety returns are ticked separately every server tick. */
@@ -154,8 +173,38 @@ public final class PlacesRealitySlipManager {
         long now = System.currentTimeMillis();
         List<UUID> due = new ArrayList<>();
         List<UUID> escaped = new ArrayList<>();
+        List<ServerPlayer> newlyEntered = new ArrayList<>();
+        List<ServerPlayer> newlyExited = new ArrayList<>();
 
         synchronized (PlacesRealitySlipManager.class) {
+            if (sessionActive) {
+                for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                    UUID id = player.getUUID();
+                    if (isInPlacesDimension(player)) {
+                        if (PLAYERS_IN_PLACES.add(id)) {
+                            newlyEntered.add(player);
+                        }
+                        StoredPosition origin = LAST_NON_PLACES_POSITIONS.get(id);
+                        if (!ACTIVE_SLIPS.containsKey(id) && origin != null) {
+                            int returnDelaySeconds = randomReturnDelaySeconds();
+                            ACTIVE_SLIPS.put(id, new SlipRecord(
+                                    origin,
+                                    now + returnDelaySeconds * 1000L
+                            ));
+                            ChaosEvents.LOGGER.info(
+                                    "Registered native Places entry for {}; automatic return in {} seconds",
+                                    player.getGameProfile().getName(), returnDelaySeconds
+                            );
+                        }
+                    } else {
+                        if (PLAYERS_IN_PLACES.remove(id)) {
+                            newlyExited.add(player);
+                        }
+                        LAST_NON_PLACES_POSITIONS.put(id, StoredPosition.capture(player));
+                    }
+                }
+            }
+
             for (Map.Entry<UUID, SlipRecord> entry : ACTIVE_SLIPS.entrySet()) {
                 ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
                 if (player != null && !isInPlacesDimension(player)) {
@@ -165,6 +214,13 @@ public final class PlacesRealitySlipManager {
                 }
             }
             escaped.forEach(ACTIVE_SLIPS::remove);
+        }
+
+        for (ServerPlayer player : newlyEntered) {
+            isolatePlayerFromGlobalEvents(server, player);
+        }
+        for (ServerPlayer player : newlyExited) {
+            BigEventEngine.includePlayer(server, player);
         }
 
         for (UUID id : due) {
@@ -229,15 +285,26 @@ public final class PlacesRealitySlipManager {
         }
         synchronized (PlacesRealitySlipManager.class) {
             if (!ACTIVE_SLIPS.containsKey(player.getUUID())) {
-                return false;
+                StoredPosition origin = LAST_NON_PLACES_POSITIONS.get(player.getUUID());
+                if (!sessionActive || origin == null) {
+                    return false;
+                }
+                ACTIVE_SLIPS.put(player.getUUID(), new SlipRecord(
+                        origin,
+                        System.currentTimeMillis() + randomReturnDelaySeconds() * 1000L
+                ));
             }
         }
         return returnManagedPlayer(server, player, "lethal damage");
     }
 
     public static boolean isInPlacesDimension(ServerPlayer player) {
-        return player != null
-                && PLACES_NAMESPACE.equals(player.level().dimension().location().getNamespace());
+        return player != null && isPlacesDimension(player.level());
+    }
+
+    public static boolean isPlacesDimension(Level level) {
+        return level != null
+                && PLACES_NAMESPACE.equals(level.dimension().location().getNamespace());
     }
 
     /** True for both Chaos-managed slips and players who entered Places using its native portals. */
@@ -288,7 +355,9 @@ public final class PlacesRealitySlipManager {
                 SoundSource.PLAYERS, 1.0F, 0.75F);
         synchronized (PlacesRealitySlipManager.class) {
             ACTIVE_SLIPS.remove(player.getUUID());
+            PLAYERS_IN_PLACES.remove(player.getUUID());
         }
+        BigEventEngine.includePlayer(server, player);
         ChaosEvents.LOGGER.info("Places reality slip returned {} to the original position ({})",
                 player.getGameProfile().getName(), reason);
         return true;
@@ -408,9 +477,12 @@ public final class PlacesRealitySlipManager {
         long returnAtMillis = System.currentTimeMillis() + returnDelaySeconds * 1000L;
         synchronized (PlacesRealitySlipManager.class) {
             ACTIVE_SLIPS.put(player.getUUID(), new SlipRecord(origin, returnAtMillis));
+            LAST_NON_PLACES_POSITIONS.put(player.getUUID(), origin);
+            PLAYERS_IN_PLACES.add(player.getUUID());
             lastTarget = player.getUUID();
             triggerCooldownTicks = TRIGGER_COOLDOWN_SECONDS * TICKS_PER_SECOND;
         }
+        isolatePlayerFromGlobalEvents(server, player);
         ChaosEvents.LOGGER.info("Places reality slip triggered for {} ({}), automatic return in {} seconds",
                 player.getGameProfile().getName(), reason, returnDelaySeconds);
         return true;
@@ -428,6 +500,11 @@ public final class PlacesRealitySlipManager {
             ChaosEvents.LOGGER.error("Failed to invoke Places level-zero portal procedure", exception);
             return false;
         }
+    }
+
+    private static void isolatePlayerFromGlobalEvents(MinecraftServer server, ServerPlayer player) {
+        BigEventEngine.excludePlayer(server, player);
+        SpatialSwapManager.excludePlayer(server, player);
     }
 
     private static synchronized Method resolveLevelZeroProcedure() {
