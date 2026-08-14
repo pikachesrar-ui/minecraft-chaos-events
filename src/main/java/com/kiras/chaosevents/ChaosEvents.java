@@ -27,6 +27,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.ServerChatEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -81,16 +82,38 @@ public final class ChaosEvents {
     @SubscribeEvent
     public void onBlockBroken(BlockEvent.BreakEvent event) {
         if (event.getPlayer() instanceof ServerPlayer player && player.getServer() != null) {
-            SpatialSwapManager.onBlockBroken(player.getServer(), player, event.getState());
-            ExpandedChaosEvent.onBlockBroken(player, event.getPos());
+            // Spatial and large-event block hooks are suspended while someone is inside Places.
+            if (!PlacesRealitySlipManager.hasAnyPlayerInPlaces(player.getServer())) {
+                SpatialSwapManager.onBlockBroken(player.getServer(), player, event.getState());
+            }
+            if (!PlacesRealitySlipManager.isInPlacesDimension(player)) {
+                ExpandedChaosEvent.onBlockBroken(player, event.getPos());
+            }
         }
     }
 
     @SubscribeEvent
     public void onFoodConsumed(LivingEntityUseItemEvent.Finish event) {
         if (event.getEntity() instanceof ServerPlayer player
+                && !PlacesRealitySlipManager.isInPlacesDimension(player)
                 && event.getItem().has(DataComponents.FOOD)) {
             InternetChaosEvent.onFoodConsumed(player);
+        }
+    }
+
+    @SubscribeEvent
+    public void onLivingDamage(LivingDamageEvent.Pre event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.getServer() == null) {
+            return;
+        }
+
+        // LivingDamageEvent.Pre is the last mutable point after armor/effect reductions. Absorption
+        // is applied after this event, so include absorption hearts when deciding whether it is fatal.
+        float lethalThreshold = player.getHealth() + player.getAbsorptionAmount();
+        if (event.getNewDamage() >= lethalThreshold
+                && PlacesRealitySlipManager.rescueFromLethalDamage(
+                        player.getServer(), player, event.getNewDamage())) {
+            event.setNewDamage(0.0F);
         }
     }
 
