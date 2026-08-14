@@ -2,6 +2,7 @@ package com.kiras.chaosevents.core;
 
 import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
+import com.kiras.chaosevents.integration.PlacesRealitySlipManager;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
 import com.kiras.chaosevents.spatial.SpatialSwapManager;
 import com.kiras.chaosevents.trivia.TriviaEngine;
@@ -55,6 +56,7 @@ public final class ChaosSessionManager {
             MicroPrankEngine.reset();
             TriviaEngine.reset();
             SpatialSwapManager.reset();
+            PlacesRealitySlipManager.reset();
             return false;
         }
 
@@ -74,6 +76,7 @@ public final class ChaosSessionManager {
         MicroPrankEngine.reset();
         TriviaEngine.reset();
         SpatialSwapManager.reset();
+        PlacesRealitySlipManager.reset();
     }
 
     public static synchronized void shutdown(MinecraftServer server) {
@@ -83,22 +86,48 @@ public final class ChaosSessionManager {
         state = State.STOPPED;
     }
 
-    /** Pausing deliberately prevents every engine from ticking. */
+    /**
+     * The Places return safety loop is deliberately independent from the public session state.
+     * A player must still return after 5-10 real minutes even if the session is paused or world
+     * acceleration changes how often auxiliary systems run.
+     */
     public static void tick(MinecraftServer server) {
+        PlacesRealitySlipManager.tickPendingReturns(server);
+
         synchronized (ChaosSessionManager.class) {
             if (state != State.RUNNING) return;
         }
 
-        BigEventEngine.tick(server);
+        boolean playerInPlaces = PlacesRealitySlipManager.hasAnyPlayerInPlaces(server);
+        if (playerInPlaces) {
+            // A large event may have started before the player crossed into Places. Stop it cleanly
+            // and freeze the large-event break while any player remains in a Places dimension.
+            BigEventEngine.skipActiveEvent(server);
+        } else {
+            BigEventEngine.tick(server);
+        }
+
         if (AcceleratedTimeEvent.INSTANCE.shouldTickAuxiliarySystems()) {
-            SpatialSwapManager.tickSession(server);
+            PlacesRealitySlipManager.tick(server);
+
+            // A hidden Places trigger may have fired just above. End a previously running large
+            // event immediately, before another server tick can apply it in the foreign dimension.
+            playerInPlaces = PlacesRealitySlipManager.hasAnyPlayerInPlaces(server);
+            if (playerInPlaces) {
+                BigEventEngine.skipActiveEvent(server);
+            } else {
+                SpatialSwapManager.tickSession(server);
+            }
+
             MicroPrankEngine.tick(server);
             TriviaEngine.tick(server);
         }
     }
 
     public static synchronized boolean forceBigEvent(MinecraftServer server) {
-        return state == State.RUNNING && BigEventEngine.forceRandomEvent(server);
+        return state == State.RUNNING
+                && !PlacesRealitySlipManager.hasAnyPlayerInPlaces(server)
+                && BigEventEngine.forceRandomEvent(server);
     }
 
     public static synchronized boolean skipBigEvent(MinecraftServer server) {
@@ -106,11 +135,15 @@ public final class ChaosSessionManager {
     }
 
     public static synchronized boolean forceSpatialEvent(MinecraftServer server) {
-        return state == State.RUNNING && BigEventEngine.forceSpatialEvent(server);
+        return state == State.RUNNING
+                && !PlacesRealitySlipManager.hasAnyPlayerInPlaces(server)
+                && BigEventEngine.forceSpatialEvent(server);
     }
 
     public static synchronized boolean forceAcceleratedTimeEvent(MinecraftServer server) {
-        return state == State.RUNNING && BigEventEngine.forceAcceleratedTimeEvent(server);
+        return state == State.RUNNING
+                && !PlacesRealitySlipManager.hasAnyPlayerInPlaces(server)
+                && BigEventEngine.forceAcceleratedTimeEvent(server);
     }
 
     public static synchronized boolean forceMicroPrank(MinecraftServer server) {
@@ -143,6 +176,7 @@ public final class ChaosSessionManager {
         MicroPrankEngine.startSession();
         TriviaEngine.startSession();
         SpatialSwapManager.startSession();
+        PlacesRealitySlipManager.startSession();
     }
 
     private static void stopEngines(MinecraftServer server) {
@@ -150,5 +184,6 @@ public final class ChaosSessionManager {
         MicroPrankEngine.stopSession(server);
         TriviaEngine.stopSession();
         SpatialSwapManager.stopSession(server);
+        PlacesRealitySlipManager.stopSession(server);
     }
 }
