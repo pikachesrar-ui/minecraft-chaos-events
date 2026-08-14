@@ -8,6 +8,7 @@ import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.event.ExpandedChaosEvent;
 import com.kiras.chaosevents.event.InternetChaosEvent;
+import com.kiras.chaosevents.integration.PlacesRealitySlipManager;
 import com.kiras.chaosevents.network.ChaosNetwork;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
 import com.kiras.chaosevents.registry.ModItems;
@@ -94,6 +95,19 @@ public final class ChaosEvents {
     }
 
     @SubscribeEvent
+    public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.getServer() == null) {
+            return;
+        }
+
+        if (PlacesRealitySlipManager.onRightClickBlock(
+                player.getServer(), player, event.getLevel().getBlockState(event.getPos()))) {
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
     public void onRightClickItem(PlayerInteractEvent.RightClickItem event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || player.getServer() == null) {
             return;
@@ -106,6 +120,13 @@ public final class ChaosEvents {
             } else {
                 ChaosNetwork.openConfigBook(player, configCategory);
             }
+            event.setCancellationResult(InteractionResult.SUCCESS);
+            event.setCanceled(true);
+            return;
+        }
+
+        if (PlacesRealitySlipManager.onRightClickItem(
+                player.getServer(), player, player.getItemInHand(event.getHand()))) {
             event.setCancellationResult(InteractionResult.SUCCESS);
             event.setCanceled(true);
             return;

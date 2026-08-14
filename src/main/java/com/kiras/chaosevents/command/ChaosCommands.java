@@ -3,6 +3,7 @@ package com.kiras.chaosevents.command;
 import com.kiras.chaosevents.config.ChaosConfigCategory;
 import com.kiras.chaosevents.core.ChaosSessionManager;
 import com.kiras.chaosevents.event.BigEventEngine;
+import com.kiras.chaosevents.integration.PlacesRealitySlipManager;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
 import com.kiras.chaosevents.registry.ModItems;
 import com.kiras.chaosevents.trivia.TriviaEngine;
@@ -41,7 +42,8 @@ public final class ChaosCommands {
                                 .then(Commands.literal("prank").executes(context -> testPrank(context.getSource())))
                                 .then(Commands.literal("screamer").executes(context -> testScreamer(context.getSource())))
                                 .then(Commands.literal("trivia").executes(context -> testTrivia(context.getSource())))
-                                .then(Commands.literal("swap").executes(context -> testSwap(context.getSource()))))
+                                .then(Commands.literal("swap").executes(context -> testSwap(context.getSource())))
+                                .then(Commands.literal("places").executes(context -> testPlaces(context.getSource()))))
         );
     }
 
@@ -102,6 +104,7 @@ public final class ChaosCommands {
                 + "; " + ChaosSessionManager.getMicroPrankStatus()
                 + "; " + ChaosSessionManager.getTriviaStatus()
                 + "; " + ChaosSessionManager.getSpatialStatus()
+                + "; " + PlacesRealitySlipManager.getStatusText()
                 + "; больших ивентов: " + BigEventEngine.getRegisteredEventCount()
                 + "; микроподлянок: " + MicroPrankEngine.getRegisteredPrankCount()
                 + "; вопросов: " + TriviaEngine.getQuestionCount();
@@ -172,6 +175,23 @@ public final class ChaosCommands {
             return 0;
         }
         source.sendSuccess(() -> Component.literal(PREFIX + "пространственный сдвиг запущен принудительно."), false);
+        return 1;
+    }
+
+    private static int testPlaces(CommandSourceStack source) {
+        if (!ChaosSessionManager.isRunning()) {
+            source.sendFailure(Component.literal(PREFIX + "сначала запусти систему командой /chaos start."));
+            return 0;
+        }
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal(PREFIX + "проверку Places нужно запускать от имени игрока."));
+            return 0;
+        }
+        if (!PlacesRealitySlipManager.forceSlip(source.getServer(), player)) {
+            source.sendFailure(Component.literal(PREFIX + "Places не установлен, измерение недоступно или пространственный сдвиг сейчас занят."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(PREFIX + "тестовый скрытый сдвиг в Places выполнен."), false);
         return 1;
     }
 

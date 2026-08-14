@@ -36,6 +36,7 @@ The session is controlled by an operator and does not start automatically. Use `
 - **In-game content configuration** through four books that toggle individual events, pranks, trivia questions and swap triggers.
 - **Accelerated world event** that runs the world at 200 TPS while keeping players close to normal speed.
 - **Optional disaster integrations** for [Weather2](https://www.curseforge.com/minecraft/mc-mods/weather-storms-tornadoes) tornadoes and [Oh My, Meteors!](https://www.curseforge.com/minecraft/mc-mods/oh-my-meteors) meteor showers when those mods are installed.
+- **Optional Places integration** with rare unannounced reality slips into Places and automatic return to the player's exact previous location after a short stay. Trigger details are intentionally left undocumented so the mechanic can remain a surprise.
 - English and Russian item localization; server announcements are currently Russian-first.
 
 ## Requirements
@@ -47,7 +48,7 @@ The session is controlled by an operator and does not start automatically. Use `
 | Java | `21` |
 | Side | Client and server |
 
-Optional integrations are detected at runtime. Weather2 and Oh My, Meteors! are not required for Chaos Events to load.
+Optional integrations are detected at runtime. Weather2, Oh My, Meteors! and Places are not required for Chaos Events to load.
 
 ## Installation
 
@@ -78,6 +79,7 @@ All commands require permission level 2.
 | `/chaos test screamer` | Show a screamer to the selected player |
 | `/chaos test trivia` | Start a trivia question |
 | `/chaos test swap` | Force a spatial swap; requires at least two players |
+| `/chaos test places` | Force a Places reality slip for the executing player when Places is installed |
 
 ## In-game configuration
 
