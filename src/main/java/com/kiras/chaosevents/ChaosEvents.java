@@ -102,13 +102,18 @@ public final class ChaosEvents {
     }
 
     @SubscribeEvent
-    public void onLivingDamage(LivingDamageEvent event) {
+    public void onLivingDamage(LivingDamageEvent.Pre event) {
         if (!(event.getEntity() instanceof ServerPlayer player) || player.getServer() == null) {
             return;
         }
-        if (PlacesRealitySlipManager.rescueFromLethalDamage(
-                player.getServer(), player, event.getAmount())) {
-            event.setCanceled(true);
+
+        // LivingDamageEvent.Pre is the last mutable point after armor/effect reductions. Absorption
+        // is applied after this event, so include absorption hearts when deciding whether it is fatal.
+        float lethalThreshold = player.getHealth() + player.getAbsorptionAmount();
+        if (event.getNewDamage() >= lethalThreshold
+                && PlacesRealitySlipManager.rescueFromLethalDamage(
+                        player.getServer(), player, event.getNewDamage())) {
+            event.setNewDamage(0.0F);
         }
     }
 
