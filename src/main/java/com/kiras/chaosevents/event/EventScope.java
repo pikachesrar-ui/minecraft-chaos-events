@@ -12,7 +12,7 @@ public enum EventScope {
     END;
 
     public boolean matches(ServerPlayer player) {
-        return matches(player.serverLevel());
+        return BigEventPlayerPolicy.canAffect(player) && matches(player.serverLevel());
     }
 
     public boolean matches(ServerLevel level) {

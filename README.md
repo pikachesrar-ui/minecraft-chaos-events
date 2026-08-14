@@ -36,7 +36,7 @@ The session is controlled by an operator and does not start automatically. Use `
 - **In-game content configuration** through four books that toggle individual events, pranks, trivia questions and swap triggers.
 - **Accelerated world event** that runs the world at 200 TPS while keeping players close to normal speed.
 - **Optional disaster integrations** for [Weather2](https://www.curseforge.com/minecraft/mc-mods/weather-storms-tornadoes) tornadoes and [Oh My, Meteors!](https://www.curseforge.com/minecraft/mc-mods/oh-my-meteors) meteor showers when those mods are installed.
-- **Optional Places integration** with rare unannounced reality slips into Places and automatic return to the player's exact previous location after a short stay. Trigger details are intentionally left undocumented so the mechanic can remain a surprise.
+- **Optional Places integration** with rare unannounced reality slips, per-player isolation from large events and spatial swaps while inside any Places dimension, and automatic return to the exact pre-entry location after 3–9 minutes. Native Places door entries receive the same safety timer; leaving through a Places exit cancels it. Trigger details are intentionally left undocumented so the mechanic can remain a surprise.
 - English and Russian item localization; server announcements are currently Russian-first.
 
 ## Requirements

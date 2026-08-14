@@ -234,6 +234,17 @@ public enum ExpandedChaosEvent implements ChaosEvent {
         }
     }
 
+    @Override
+    public void excludePlayer(MinecraftServer server, ServerPlayer player) {
+        switch (this) {
+            case INVISIBLE_EVERYONE -> player.removeEffect(MobEffects.INVISIBILITY);
+            case RESISTANCE -> player.removeEffect(MobEffects.DAMAGE_RESISTANCE);
+            case NIGHT_VISION -> player.removeEffect(MobEffects.NIGHT_VISION);
+            case SKYWARD_SURGE -> player.removeEffect(MobEffects.SLOW_FALLING);
+            default -> { }
+        }
+    }
+
     public static void onBlockBroken(ServerPlayer player, BlockPos brokenPos) {
         if (!EXPLOSIVE_MINING.running) return;
 

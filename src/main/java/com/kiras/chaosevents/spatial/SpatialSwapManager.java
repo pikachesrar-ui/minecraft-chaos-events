@@ -3,6 +3,7 @@ package com.kiras.chaosevents.spatial;
 import com.kiras.chaosevents.config.ChaosConfigCategory;
 import com.kiras.chaosevents.config.ChaosConfigEntry;
 import com.kiras.chaosevents.config.ChaosConfigManager;
+import com.kiras.chaosevents.event.BigEventPlayerPolicy;
 import com.kiras.chaosevents.registry.ModItems;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -93,7 +94,7 @@ public final class SpatialSwapManager {
             if (ticksUntilAutomaticSwap > 0) ticksUntilAutomaticSwap--;
             if (ticksUntilAutomaticSwap > 0) return;
 
-            if (returnActive || dedicatedEventActive || server.getPlayerList().getPlayers().size() < 2) {
+            if (returnActive || dedicatedEventActive || eligiblePlayers(server).size() < 2) {
                 ticksUntilAutomaticSwap = AUTOMATIC_SWAP_RETRY_SECONDS * TICKS_PER_SECOND;
                 return;
             }
@@ -103,7 +104,7 @@ public final class SpatialSwapManager {
         }
 
         if (triggerAutomaticSwap) {
-            List<ServerPlayer> players = new ArrayList<>(server.getPlayerList().getPlayers());
+            List<ServerPlayer> players = eligiblePlayers(server);
             broadcast(server, "Плановый пространственный сбой! Игроки меняются текущими позициями.");
             beginReversibleSwap(server, players);
         }
@@ -112,7 +113,7 @@ public final class SpatialSwapManager {
     public static synchronized boolean canStart(MinecraftServer server) {
         return ChaosConfigManager.isEnabled(ChaosConfigCategory.SWAP, CONFIG_BIG_EVENT_SWAP)
                 && !returnActive
-                && server.getPlayerList().getPlayers().size() >= 2;
+                && eligiblePlayers(server).size() >= 2;
     }
 
     public static boolean startEvent(MinecraftServer server) {
@@ -120,7 +121,7 @@ public final class SpatialSwapManager {
             return false;
         }
 
-        List<ServerPlayer> players = new ArrayList<>(server.getPlayerList().getPlayers());
+        List<ServerPlayer> players = eligiblePlayers(server);
         if (players.size() < 2) {
             return false;
         }
@@ -146,7 +147,9 @@ public final class SpatialSwapManager {
         int required;
 
         synchronized (SpatialSwapManager.class) {
-            if (!returnActive || !PARTICIPANTS.contains(player.getUUID())) {
+            if (!BigEventPlayerPolicy.canAffect(player)
+                    || !returnActive
+                    || !PARTICIPANTS.contains(player.getUUID())) {
                 return InteractionResult.PASS;
             }
 
@@ -181,7 +184,7 @@ public final class SpatialSwapManager {
         synchronized (SpatialSwapManager.class) {
             trigger = sessionActive
                     && !diamondSwapUsedForSession
-                    && server.getPlayerList().getPlayers().size() >= 2
+                    && eligiblePlayers(server).size() >= 2
                     && (state.is(Blocks.DIAMOND_ORE) || state.is(Blocks.DEEPSLATE_DIAMOND_ORE));
             preserveExistingReturn = returnActive;
             if (trigger) {
@@ -195,7 +198,7 @@ public final class SpatialSwapManager {
             if (preserveExistingReturn) {
                 swapCurrentParticipants(server);
             } else {
-                beginReversibleSwap(server, new ArrayList<>(server.getPlayerList().getPlayers()));
+                beginReversibleSwap(server, eligiblePlayers(server));
             }
         }
         return trigger;
@@ -222,6 +225,22 @@ public final class SpatialSwapManager {
         ORIGINAL_POSITIONS.clear();
         PARTICIPANTS.clear();
         ACTIVATED_ANCHORS.clear();
+    }
+
+    /** Removes a player who crossed into Places from all current and future swap effects. */
+    public static void excludePlayer(MinecraftServer server, ServerPlayer player) {
+        boolean noLongerEnoughParticipants;
+        synchronized (SpatialSwapManager.class) {
+            UUID id = player.getUUID();
+            PARTICIPANTS.remove(id);
+            ORIGINAL_POSITIONS.remove(id);
+            ACTIVATED_ANCHORS.remove(id);
+            noLongerEnoughParticipants = returnActive && PARTICIPANTS.size() < 2;
+        }
+        removeAnchors(player);
+        if (noLongerEnoughParticipants) {
+            clearReturnContext(server);
+        }
     }
 
     private static void tickAnchorWindow(MinecraftServer server) {
@@ -277,7 +296,7 @@ public final class SpatialSwapManager {
 
         for (Map.Entry<UUID, StoredPosition> entry : originals.entrySet()) {
             ServerPlayer player = server.getPlayerList().getPlayer(entry.getKey());
-            if (player != null) {
+            if (BigEventPlayerPolicy.canAffect(player)) {
                 teleport(server, player, entry.getValue());
             }
         }
@@ -300,6 +319,7 @@ public final class SpatialSwapManager {
         List<ServerPlayer> players;
         synchronized (SpatialSwapManager.class) {
             players = server.getPlayerList().getPlayers().stream()
+                    .filter(BigEventPlayerPolicy::canAffect)
                     .filter(player -> PARTICIPANTS.contains(player.getUUID()))
                     .toList();
         }
@@ -336,7 +356,7 @@ public final class SpatialSwapManager {
     private static int countOnlineParticipants(MinecraftServer server) {
         int count = 0;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (PARTICIPANTS.contains(player.getUUID())) {
+            if (BigEventPlayerPolicy.canAffect(player) && PARTICIPANTS.contains(player.getUUID())) {
                 count++;
             }
         }
@@ -346,7 +366,9 @@ public final class SpatialSwapManager {
     private static int countOnlineActivated(MinecraftServer server) {
         int count = 0;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (PARTICIPANTS.contains(player.getUUID()) && ACTIVATED_ANCHORS.contains(player.getUUID())) {
+            if (BigEventPlayerPolicy.canAffect(player)
+                    && PARTICIPANTS.contains(player.getUUID())
+                    && ACTIVATED_ANCHORS.contains(player.getUUID())) {
                 count++;
             }
         }
@@ -394,7 +416,11 @@ public final class SpatialSwapManager {
 
     private static void broadcast(MinecraftServer server, String text) {
         Component component = Component.literal(PREFIX + text);
-        server.getPlayerList().getPlayers().forEach(player -> player.sendSystemMessage(component));
+        eligiblePlayers(server).forEach(player -> player.sendSystemMessage(component));
+    }
+
+    private static List<ServerPlayer> eligiblePlayers(MinecraftServer server) {
+        return new ArrayList<>(BigEventPlayerPolicy.eligiblePlayers(server));
     }
 
     public static synchronized boolean isActive() {

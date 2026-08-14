@@ -1,5 +1,6 @@
 package com.kiras.chaosevents.event;
 
+import com.kiras.chaosevents.integration.PlacesRealitySlipManager;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -39,7 +40,7 @@ public enum AcceleratedTimeEvent implements ChaosEvent {
 
     @Override
     public boolean isEligible(MinecraftServer server) {
-        return !server.getPlayerList().getPlayers().isEmpty();
+        return BigEventPlayerPolicy.hasEligiblePlayer(server);
     }
 
     @Override
@@ -101,7 +102,8 @@ public enum AcceleratedTimeEvent implements ChaosEvent {
         }
 
         boolean protectedEntity = entity instanceof ServerPlayer
-                || carriesServerPlayer(entity);
+                || carriesServerPlayer(entity)
+                || PlacesRealitySlipManager.isPlacesDimension(entity.level());
         return protectedEntity && !normalSpeedTick;
     }
 

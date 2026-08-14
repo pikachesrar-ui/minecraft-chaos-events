@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
-/** Thirty-five substantial built-in events. SpatialSwapEvent is registered as event number thirty-six. */
+/** Substantial built-in events. SpatialSwapEvent is registered separately. */
 public enum BuiltinChaosEvent implements ChaosEvent {
     GRAVITY_FAILURE("gravity_failure", "Отказ гравитации", EventScope.ANY, true),
     CRUSHING_GRAVITY("crushing_gravity", "Сокрушительная гравитация", EventScope.ANY, true),
@@ -33,7 +33,6 @@ public enum BuiltinChaosEvent implements ChaosEvent {
     TIME_QUICKSAND("time_quicksand", "Временная трясина", EventScope.ANY, true),
     TOTAL_DARKNESS("total_darkness", "Абсолютная тьма", EventScope.ANY, true),
     HUNTERS_MARK("hunters_mark", "Метка охотника", EventScope.ANY, true),
-    LIFE_DRAIN("life_drain", "Похищение жизни", EventScope.ANY, true),
     TOXIC_AIR("toxic_air", "Ядовитый воздух", EventScope.ANY, true),
     FAMINE("famine", "Великий голод", EventScope.ANY, true),
     SKYHOOK("skyhook", "Небесный крюк", EventScope.ANY, true),
@@ -52,7 +51,6 @@ public enum BuiltinChaosEvent implements ChaosEvent {
     INFERNAL_HUNGER("infernal_hunger", "Ненасытный Ад", EventScope.NETHER, true),
     BLAZE_SWARM("blaze_swarm", "Рой ифритов", EventScope.NETHER, true),
     MAGMA_MARCH("magma_march", "Марш магмы", EventScope.NETHER, true),
-    WITHERED_AIR("withered_air", "Иссушенный воздух", EventScope.NETHER, true),
     SOUL_CRUSH("soul_crush", "Давление душ", EventScope.NETHER, true),
     FIRESTORM("firestorm", "Огненный шторм", EventScope.NETHER, true),
     PIGLIN_HUNT("piglin_hunt", "Охота пиглинов", EventScope.NETHER, true),
@@ -146,10 +144,6 @@ public enum BuiltinChaosEvent implements ChaosEvent {
                 effect(player, MobEffects.GLOWING, SHORT_EFFECT_TICKS, 0);
                 effect(player, MobEffects.BAD_OMEN, SHORT_EFFECT_TICKS, 0);
             });
-            case LIFE_DRAIN -> forPlayers(server, player -> {
-                effect(player, MobEffects.WITHER, 65, 0);
-                effect(player, MobEffects.WEAKNESS, SHORT_EFFECT_TICKS, 1);
-            });
             case TOXIC_AIR -> forPlayers(server, player -> {
                 effect(player, MobEffects.POISON, 75, 1);
                 effect(player, MobEffects.CONFUSION, SHORT_EFFECT_TICKS, 0);
@@ -162,7 +156,6 @@ public enum BuiltinChaosEvent implements ChaosEvent {
                 effect(player, MobEffects.HUNGER, SHORT_EFFECT_TICKS, 3);
                 effect(player, MobEffects.WEAKNESS, SHORT_EFFECT_TICKS, 1);
             });
-            case WITHERED_AIR -> forPlayers(server, player -> effect(player, MobEffects.WITHER, 70, 1));
             case SOUL_CRUSH -> forPlayers(server, player -> {
                 effect(player, MobEffects.MOVEMENT_SLOWDOWN, SHORT_EFFECT_TICKS, 3);
                 effect(player, MobEffects.DARKNESS, SHORT_EFFECT_TICKS, 0);
@@ -253,8 +246,40 @@ public enum BuiltinChaosEvent implements ChaosEvent {
         }
     }
 
+    @Override
+    public void excludePlayer(MinecraftServer server, ServerPlayer player) {
+        switch (this) {
+            case GRAVITY_FAILURE, VOID_LIGHTNESS -> removeEffects(player, MobEffects.SLOW_FALLING, MobEffects.JUMP);
+            case CRUSHING_GRAVITY -> removeEffects(player,
+                    MobEffects.MOVEMENT_SLOWDOWN, MobEffects.WEAKNESS, MobEffects.DIG_SLOWDOWN);
+            case BERSERKER_RUSH -> removeEffects(player,
+                    MobEffects.MOVEMENT_SPEED, MobEffects.DAMAGE_BOOST, MobEffects.HUNGER);
+            case TIME_QUICKSAND -> removeEffects(player,
+                    MobEffects.MOVEMENT_SLOWDOWN, MobEffects.DIG_SLOWDOWN, MobEffects.CONFUSION);
+            case TOTAL_DARKNESS -> removeEffects(player, MobEffects.DARKNESS, MobEffects.BLINDNESS);
+            case HUNTERS_MARK -> removeEffects(player, MobEffects.GLOWING, MobEffects.BAD_OMEN);
+            case TOXIC_AIR -> removeEffects(player, MobEffects.POISON, MobEffects.CONFUSION);
+            case FAMINE -> removeEffects(player, MobEffects.HUNGER);
+            case SKYHOOK, SHULKER_ECHO -> removeEffects(player, MobEffects.LEVITATION);
+            case CHAOS_ROULETTE -> ROULETTE_EFFECTS.forEach(player::removeEffect);
+            case INFERNAL_HUNGER -> removeEffects(player, MobEffects.HUNGER, MobEffects.WEAKNESS);
+            case SOUL_CRUSH -> removeEffects(player,
+                    MobEffects.MOVEMENT_SLOWDOWN, MobEffects.DARKNESS, MobEffects.WEAKNESS);
+            case ENDER_STATIC -> removeEffects(player, MobEffects.CONFUSION, MobEffects.DARKNESS);
+            case VOID_SILENCE -> removeEffects(player, MobEffects.BLINDNESS, MobEffects.WEAKNESS);
+            case DRAGON_BREATH -> removeEffects(player, MobEffects.POISON);
+            case LAVA_GEYSERS, FIRESTORM -> player.clearFire();
+            default -> { }
+        }
+    }
+
     private void forPlayers(MinecraftServer server, Consumer<ServerPlayer> action) {
         server.getPlayerList().getPlayers().stream().filter(scope::matches).forEach(action);
+    }
+
+    @SafeVarargs
+    private static void removeEffects(ServerPlayer player, Holder<MobEffect>... effects) {
+        for (Holder<MobEffect> effect : effects) player.removeEffect(effect);
     }
 
     private void playForPlayers(MinecraftServer server, net.minecraft.sounds.SoundEvent sound,
