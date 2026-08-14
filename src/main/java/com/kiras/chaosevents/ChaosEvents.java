@@ -137,9 +137,6 @@ public final class ChaosEvents {
         }
 
         InteractionResult result = SpatialSwapManager.activateAnchor(player.getServer(), player, event.getHand());
-        if (result == InteractionResult.PASS) {
-            result = PlacesRealitySlipManager.activateAnchor(player.getServer(), player, event.getHand());
-        }
         if (result != InteractionResult.PASS) {
             event.setCancellationResult(result);
             event.setCanceled(true);
