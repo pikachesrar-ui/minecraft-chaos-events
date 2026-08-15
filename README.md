@@ -30,13 +30,13 @@ The session is controlled by an operator and does not start automatically. Use `
 ## Highlights
 
 - **Large chaos events** with a boss-bar timer, configurable randomized breaks and no immediate repeats.
-- **Micro pranks** aimed at individual players on a configurable interval, designed to be disruptive without being deliberately lethal.
+- **30 micro pranks** aimed at individual players on a configurable interval, designed to be disruptive without being deliberately lethal. The 28 regular pranks do not repeat within a cycle; screamers may recur but never immediately repeat when alternatives are enabled.
 - **Trivia rounds** on a configurable interval with a 15-second answer window, rewards and penalties for mistakes.
 - **Spatial swaps** that exchange online players between positions and dimensions, including a cooperative return-anchor mechanic and a configurable scheduled-swap timer.
 - **In-game content configuration** through four books that toggle individual events, pranks, trivia questions and swap triggers.
 - **Accelerated world event** that runs the world at 200 TPS while keeping players close to normal speed.
 - **Optional disaster integrations** for [Weather2](https://www.curseforge.com/minecraft/mc-mods/weather-storms-tornadoes) tornadoes and [Oh My, Meteors!](https://www.curseforge.com/minecraft/mc-mods/oh-my-meteors) meteor showers when those mods are installed.
-- **Optional Places integration** with rare unannounced reality slips, per-player isolation from large events and spatial swaps while inside any Places dimension, and automatic return to the exact pre-entry location after 3–9 minutes. Native Places door entries receive the same safety timer; leaving through a Places exit cancels it. Trigger details are intentionally left undocumented so the mechanic can remain a surprise.
+- **Optional Places integration** with rare unannounced reality slips for one or two players, per-player isolation from large events and spatial swaps while inside any Places dimension, and automatic return to the exact pre-entry location after 3–9 minutes. Native Places door entries receive the same safety timer; leaving through a Places exit cancels it. Trigger details are intentionally left undocumented so the mechanic can remain a surprise.
 - English and Russian item localization; server announcements are currently Russian-first.
 
 ## Requirements
@@ -96,6 +96,8 @@ The swap book can also independently disable the scheduled swap, the one-time fi
 Install a Java 21 JDK, then clone the repository and run:
 
 ```bash
+git clone https://github.com/pikachesrar-ui/minecraft-chaos-events.git
+cd minecraft-chaos-events
 ./gradlew build
 ```
 
@@ -105,7 +107,7 @@ On Windows PowerShell:
 .\gradlew.bat build
 ```
 
-The compiled JAR is written to `build/libs/`. Development clients and servers can be launched with `./gradlew runClient` and `./gradlew runServer`.
+The compiled JAR is written to `build/libs/`. Development clients and servers can be launched with `./gradlew runClient` and `./gradlew runServer`. Local-only assets may be kept under the Git-ignored `src/private/resources` directory and included in a separately versioned build with `./gradlew clean build -Pmod_version=0.3.4-private.1`.
 
 Every push and pull request is compiled by GitHub Actions. Tags matching `v*` build the project and publish the resulting JAR as a GitHub release.
 

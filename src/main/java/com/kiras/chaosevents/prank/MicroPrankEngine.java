@@ -138,26 +138,36 @@ public final class MicroPrankEngine {
                 .toList();
         if (enabled.isEmpty()) return null;
 
-        USED_PRANKS.removeIf(prank -> !enabled.contains(prank));
+        List<PrankType> nonRepeating = enabled.stream()
+                .filter(prank -> !prank.isScreamer())
+                .toList();
+        USED_PRANKS.removeIf(prank -> !nonRepeating.contains(prank));
         if (enabled.size() == 1) {
             lastPrank = enabled.getFirst();
-            USED_PRANKS.add(lastPrank);
+            if (!lastPrank.isScreamer()) {
+                USED_PRANKS.add(lastPrank);
+            }
             return lastPrank;
         }
 
-        boolean newCycle = enabled.stream().allMatch(USED_PRANKS::contains);
-        if (newCycle) USED_PRANKS.clear();
+        if (!nonRepeating.isEmpty() && nonRepeating.stream().allMatch(USED_PRANKS::contains)) {
+            USED_PRANKS.clear();
+        }
 
         List<PrankType> candidates = enabled.stream()
-                .filter(prank -> !USED_PRANKS.contains(prank))
-                .filter(prank -> !newCycle || prank != lastPrank)
+                .filter(prank -> prank.isScreamer() || !USED_PRANKS.contains(prank))
+                .filter(prank -> prank != lastPrank)
                 .toList();
         if (candidates.isEmpty()) {
-            candidates = enabled.stream().filter(prank -> !USED_PRANKS.contains(prank)).toList();
+            candidates = enabled.stream()
+                    .filter(prank -> prank.isScreamer() || !USED_PRANKS.contains(prank))
+                    .toList();
         }
 
         PrankType selected = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
-        USED_PRANKS.add(selected);
+        if (!selected.isScreamer()) {
+            USED_PRANKS.add(selected);
+        }
         lastPrank = selected;
         return selected;
     }
@@ -438,6 +448,10 @@ public final class MicroPrankEngine {
 
         private String id() {
             return name().toLowerCase(Locale.ROOT);
+        }
+
+        private boolean isScreamer() {
+            return this == SCREAMER_RAGE || this == SCREAMER_VOID;
         }
     }
 

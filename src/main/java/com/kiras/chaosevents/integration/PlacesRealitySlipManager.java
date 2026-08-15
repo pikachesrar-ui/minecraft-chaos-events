@@ -25,6 +25,7 @@ import net.neoforged.fml.ModList;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -46,12 +47,10 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class PlacesRealitySlipManager {
     private static final String PLACES_MOD_ID = "places";
     private static final String PLACES_NAMESPACE = "places";
-    private static final String LEVEL_ZERO_PROCEDURE =
-            "net.mcreator.places.procedures.Level0PortalEntityCollidesInTheBlockProcedure";
 
     private static final int TICKS_PER_SECOND = 20;
-    private static final int SCHEDULED_MIN_SECONDS = 45 * 60;
-    private static final int SCHEDULED_MAX_SECONDS = 120 * 60;
+    private static final int SCHEDULED_MIN_SECONDS = 40 * 60;
+    private static final int SCHEDULED_MAX_SECONDS = 90 * 60;
     private static final int SCHEDULE_RETRY_SECONDS = 60;
     private static final int TRIGGER_COOLDOWN_SECONDS = 10 * 60;
     private static final int RETURN_MIN_SECONDS = 3 * 60;
@@ -60,25 +59,25 @@ public final class PlacesRealitySlipManager {
 
     private static final int ENDER_PEARL_CHANCE = 100;
     private static final int BED_CHANCE = 90;
+    private static final int PAIRED_BED_CHANCE = 12;
+    private static final int SCHEDULED_PAIR_CHANCE = 4;
+    private static final double NEARBY_BED_PLAYER_DISTANCE_SQUARED = 6.0 * 6.0;
     private static final int DARK_DOOR_CHANCE = 80;
     private static final int DEEP_CAVE_CHANCE = 180;
-
-    private static final ResourceKey<Level> LEVEL_ZERO = ResourceKey.create(
-            Registries.DIMENSION,
-            ResourceLocation.fromNamespaceAndPath(PLACES_NAMESPACE, "rooms_0")
-    );
 
     private static final Map<UUID, SlipRecord> ACTIVE_SLIPS = new HashMap<>();
     private static final Map<UUID, StoredPosition> LAST_NON_PLACES_POSITIONS = new HashMap<>();
     private static final Set<UUID> PLAYERS_IN_PLACES = new HashSet<>();
+    private static final Map<PlacesDestination, Method> PORTAL_PROCEDURES =
+            new EnumMap<>(PlacesDestination.class);
+    private static final Set<PlacesDestination> UNAVAILABLE_DESTINATIONS =
+            new HashSet<>();
 
     private static boolean sessionActive;
     private static int ticksUntilScheduledSlip;
     private static int triggerCooldownTicks;
     private static int deepCaveCheckTicks;
     private static UUID lastTarget;
-    private static Method levelZeroProcedure;
-    private static boolean reflectionResolved;
 
     private PlacesRealitySlipManager() {
     }
@@ -255,9 +254,16 @@ public final class PlacesRealitySlipManager {
             return false;
         }
 
-        if (state.getBlock() instanceof BedBlock
-                && ThreadLocalRandom.current().nextInt(BED_CHANCE) == 0) {
-            return triggerSlip(server, player, "bed", false);
+        if (state.getBlock() instanceof BedBlock) {
+            ServerPlayer sleepingPartner = findNearbySleepingPartner(server, player);
+            if (sleepingPartner != null
+                    && ThreadLocalRandom.current().nextInt(PAIRED_BED_CHANCE) == 0
+                    && triggerGroupSlip(server, List.of(player, sleepingPartner), "paired_beds", false)) {
+                return true;
+            }
+            if (ThreadLocalRandom.current().nextInt(BED_CHANCE) == 0) {
+                return triggerSlip(server, player, "bed", false);
+            }
         }
 
         if (state.getBlock() instanceof DoorBlock
@@ -414,7 +420,19 @@ public final class PlacesRealitySlipManager {
 
         if (!candidates.isEmpty()) {
             ServerPlayer target = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
-            triggerSlip(server, target, "scheduled", false);
+            List<ServerPlayer> targets = new ArrayList<>();
+            targets.add(target);
+            if (ThreadLocalRandom.current().nextInt(SCHEDULED_PAIR_CHANCE) == 0) {
+                List<ServerPlayer> partners = server.getPlayerList().getPlayers().stream()
+                        .filter(player -> !player.isSpectator())
+                        .filter(player -> !isInPlacesDimension(player))
+                        .filter(player -> !player.getUUID().equals(target.getUUID()))
+                        .toList();
+                if (!partners.isEmpty()) {
+                    targets.add(partners.get(ThreadLocalRandom.current().nextInt(partners.size())));
+                }
+            }
+            triggerGroupSlip(server, targets, targets.size() > 1 ? "scheduled_pair" : "scheduled", false);
         }
 
         synchronized (PlacesRealitySlipManager.class) {
@@ -435,7 +453,7 @@ public final class PlacesRealitySlipManager {
 
     private static boolean canAnyRandomSlipStart(MinecraftServer server) {
         return isPlacesLoaded()
-                && server.getLevel(LEVEL_ZERO) != null
+                && hasSupportedDestination(server)
                 && !SpatialSwapManager.isActive()
                 && !hasAnyPlayerInPlaces(server)
                 && !hasOnlineActiveSlip(server);
@@ -454,50 +472,120 @@ public final class PlacesRealitySlipManager {
     }
 
     private static boolean triggerSlip(MinecraftServer server, ServerPlayer player, String reason, boolean ignoreCooldown) {
-        if (!isPlacesLoaded() || player == null || isInPlacesDimension(player) || SpatialSwapManager.isActive()) {
+        return triggerGroupSlip(server, List.of(player), reason, ignoreCooldown);
+    }
+
+    private static boolean triggerGroupSlip(
+            MinecraftServer server,
+            List<ServerPlayer> requestedPlayers,
+            String reason,
+            boolean ignoreCooldown
+    ) {
+        if (!isPlacesLoaded() || SpatialSwapManager.isActive()) {
             return false;
         }
+
+        List<ServerPlayer> players = requestedPlayers.stream()
+                .filter(player -> player != null && !player.isSpectator() && !isInPlacesDimension(player))
+                .distinct()
+                .toList();
+        if (players.isEmpty() || players.size() != requestedPlayers.size()) {
+            return false;
+        }
+
         synchronized (PlacesRealitySlipManager.class) {
             if (!ignoreCooldown && (!sessionActive || triggerCooldownTicks > 0 || hasOnlineActiveSlip(server))) {
                 return false;
             }
         }
 
-        StoredPosition origin = StoredPosition.capture(player);
-        if (!invokePlacesLevelZero(player)) {
+        PlacesDestination destination = chooseDestination(server);
+        if (destination == null) {
+            ChaosEvents.LOGGER.warn("Places reality slip has no available safe destination");
             return false;
         }
-        if (!isInPlacesDimension(player)) {
-            ChaosEvents.LOGGER.warn("Places reality slip did not move {} into a Places dimension",
-                    player.getGameProfile().getName());
-            return false;
+
+        Map<UUID, StoredPosition> origins = new HashMap<>();
+        List<ServerPlayer> moved = new ArrayList<>();
+        for (ServerPlayer player : players) {
+            origins.put(player.getUUID(), StoredPosition.capture(player));
+            if (!invokePlacesPortal(player, destination) || !isInPlacesDimension(player)) {
+                ChaosEvents.LOGGER.warn("Places reality slip did not move {} into {}",
+                        player.getGameProfile().getName(), destination.dimensionId());
+                for (ServerPlayer movedPlayer : moved) {
+                    teleport(server, movedPlayer, origins.get(movedPlayer.getUUID()));
+                }
+                return false;
+            }
+            moved.add(player);
         }
 
         int returnDelaySeconds = randomReturnDelaySeconds();
         long returnAtMillis = System.currentTimeMillis() + returnDelaySeconds * 1000L;
         synchronized (PlacesRealitySlipManager.class) {
-            ACTIVE_SLIPS.put(player.getUUID(), new SlipRecord(origin, returnAtMillis));
-            LAST_NON_PLACES_POSITIONS.put(player.getUUID(), origin);
-            PLAYERS_IN_PLACES.add(player.getUUID());
-            lastTarget = player.getUUID();
+            for (ServerPlayer player : players) {
+                UUID id = player.getUUID();
+                StoredPosition origin = origins.get(id);
+                ACTIVE_SLIPS.put(id, new SlipRecord(origin, returnAtMillis));
+                LAST_NON_PLACES_POSITIONS.put(id, origin);
+                PLAYERS_IN_PLACES.add(id);
+            }
+            lastTarget = players.getFirst().getUUID();
             triggerCooldownTicks = TRIGGER_COOLDOWN_SECONDS * TICKS_PER_SECOND;
         }
-        isolatePlayerFromGlobalEvents(server, player);
-        ChaosEvents.LOGGER.info("Places reality slip triggered for {} ({}), automatic return in {} seconds",
-                player.getGameProfile().getName(), reason, returnDelaySeconds);
+        for (ServerPlayer player : players) {
+            isolatePlayerFromGlobalEvents(server, player);
+            ChaosEvents.LOGGER.info(
+                    "Places reality slip triggered for {} ({}) into {}, automatic return in {} seconds",
+                    player.getGameProfile().getName(), reason, destination.dimensionId(), returnDelaySeconds);
+        }
         return true;
     }
 
-    private static boolean invokePlacesLevelZero(ServerPlayer player) {
+    private static ServerPlayer findNearbySleepingPartner(MinecraftServer server, ServerPlayer player) {
+        return server.getPlayerList().getPlayers().stream()
+                .filter(candidate -> candidate != player)
+                .filter(candidate -> candidate.level() == player.level())
+                .filter(ServerPlayer::isSleeping)
+                .filter(candidate -> !candidate.isSpectator())
+                .filter(candidate -> !isInPlacesDimension(candidate))
+                .filter(candidate -> candidate.distanceToSqr(player) <= NEARBY_BED_PLAYER_DISTANCE_SQUARED)
+                .findAny()
+                .orElse(null);
+    }
+
+    private static PlacesDestination chooseDestination(MinecraftServer server) {
+        List<PlacesDestination> available = new ArrayList<>();
+        for (PlacesDestination destination : PlacesDestination.values()) {
+            if (server.getLevel(destination.dimension()) != null && resolvePortalProcedure(destination) != null) {
+                available.add(destination);
+            }
+        }
+        return available.isEmpty()
+                ? null
+                : available.get(ThreadLocalRandom.current().nextInt(available.size()));
+    }
+
+    private static boolean hasSupportedDestination(MinecraftServer server) {
+        for (PlacesDestination destination : PlacesDestination.values()) {
+            if (server.getLevel(destination.dimension()) != null && resolvePortalProcedure(destination) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean invokePlacesPortal(ServerPlayer player, PlacesDestination destination) {
         try {
-            Method method = resolveLevelZeroProcedure();
+            Method method = resolvePortalProcedure(destination);
             if (method == null) {
                 return false;
             }
             method.invoke(null, (LevelAccessor) player.serverLevel(), (Entity) player);
             return true;
         } catch (IllegalAccessException | InvocationTargetException exception) {
-            ChaosEvents.LOGGER.error("Failed to invoke Places level-zero portal procedure", exception);
+            ChaosEvents.LOGGER.error("Failed to invoke Places portal procedure for {}",
+                    destination.dimensionId(), exception);
             return false;
         }
     }
@@ -507,22 +595,28 @@ public final class PlacesRealitySlipManager {
         SpatialSwapManager.excludePlayer(server, player);
     }
 
-    private static synchronized Method resolveLevelZeroProcedure() {
-        if (reflectionResolved) {
-            return levelZeroProcedure;
+    private static synchronized Method resolvePortalProcedure(PlacesDestination destination) {
+        Method cached = PORTAL_PROCEDURES.get(destination);
+        if (cached != null) {
+            return cached;
         }
-        reflectionResolved = true;
+        if (UNAVAILABLE_DESTINATIONS.contains(destination)) {
+            return null;
+        }
         try {
-            Class<?> procedure = Class.forName(LEVEL_ZERO_PROCEDURE);
-            levelZeroProcedure = procedure.getMethod("execute", LevelAccessor.class, Entity.class);
-            ChaosEvents.LOGGER.info("Places integration enabled using {}", LEVEL_ZERO_PROCEDURE);
+            Class<?> procedure = Class.forName(destination.procedureClass());
+            Method method = procedure.getMethod("execute", LevelAccessor.class, Entity.class);
+            PORTAL_PROCEDURES.put(destination, method);
+            ChaosEvents.LOGGER.info("Places safe destination enabled: {} using {}",
+                    destination.dimensionId(), destination.procedureClass());
+            return method;
         } catch (ReflectiveOperationException exception) {
             ChaosEvents.LOGGER.warn(
-                    "Places is installed, but the supported 0.4.9 portal procedure was not found; reality slips are disabled",
-                    exception);
-            levelZeroProcedure = null;
+                    "Places destination {} is unavailable because its 0.4.9 portal procedure was not found",
+                    destination.dimensionId(), exception);
+            UNAVAILABLE_DESTINATIONS.add(destination);
+            return null;
         }
-        return levelZeroProcedure;
     }
 
     private static boolean isVeryDark(ServerPlayer player) {
@@ -568,6 +662,46 @@ public final class PlacesRealitySlipManager {
     }
 
     private record SlipRecord(StoredPosition origin, long returnAtMillis) {
+    }
+
+    /**
+     * Native Places 0.4.9 portal procedures with fixed, mod-owned arrival points. Context-sensitive
+     * transitions (Pocket Room and Ridge portals) are deliberately excluded from random slips.
+     */
+    private enum PlacesDestination {
+        LEVEL_ZERO("rooms_0", "Level0PortalEntityCollidesInTheBlockProcedure"),
+        MANILA("manila_dim", "ManillaPortalEntityCollidesInTheBlockProcedure"),
+        RED_ROAD("red_road_dim", "RedRoadPortalEntityCollidesInTheBlockProcedure"),
+        THE_END("the_end_dim", "TheEndPortalEntityCollidesInTheBlockProcedure"),
+        STRUCTURE_BRIDGE("structure_bridge_dim", "StructureBridgePortalOnEntityProcedure"),
+        WARP_TUNNEL("warp_tunnel", "WarpTunnelTeleportEntityCollidesProcedure");
+
+        private static final String PROCEDURE_PACKAGE = "net.mcreator.places.procedures.";
+
+        private final String dimensionId;
+        private final ResourceKey<Level> dimension;
+        private final String procedureClass;
+
+        PlacesDestination(String dimensionPath, String procedureClassName) {
+            this.dimensionId = PLACES_NAMESPACE + ":" + dimensionPath;
+            this.dimension = ResourceKey.create(
+                    Registries.DIMENSION,
+                    ResourceLocation.fromNamespaceAndPath(PLACES_NAMESPACE, dimensionPath)
+            );
+            this.procedureClass = PROCEDURE_PACKAGE + procedureClassName;
+        }
+
+        String dimensionId() {
+            return dimensionId;
+        }
+
+        ResourceKey<Level> dimension() {
+            return dimension;
+        }
+
+        String procedureClass() {
+            return procedureClass;
+        }
     }
 
     private record StoredPosition(ResourceKey<Level> dimension, double x, double y, double z, float yaw, float pitch) {
