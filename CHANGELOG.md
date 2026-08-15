@@ -35,6 +35,13 @@ Notable changes to Chaos Events are documented here. The project follows [Semant
 - The 28 non-screamer micro-pranks do not repeat until their cycle is exhausted; the two screamer
   prank types remain eligible throughout the cycle, while immediate identical repeats are avoided.
 
+### Fixed
+
+- Fixed the event configuration book applying its background blur twice and obscuring event names.
+- Items created by large events are now temporary and are removed from player inventories,
+  open containers and the ground when the event ends. Tagged leftovers are also removed when
+  a player reconnects, a container is reopened or an unloaded dropped item is loaded again.
+
 ## [0.3.3] — 2026-08-14
 
 ### Changed

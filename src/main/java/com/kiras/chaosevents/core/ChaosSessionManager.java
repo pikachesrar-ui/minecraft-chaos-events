@@ -156,7 +156,7 @@ public final class ChaosSessionManager {
     public static String getSpatialStatus() { return SpatialSwapManager.getStatusText(); }
 
     private static void startEngines(MinecraftServer server) {
-        BigEventEngine.startSession();
+        BigEventEngine.startSession(server);
         MicroPrankEngine.startSession();
         TriviaEngine.startSession();
         SpatialSwapManager.startSession();
