@@ -18,7 +18,9 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
@@ -28,6 +30,10 @@ public final class TriviaEngine {
     private static final int TICKS_PER_SECOND = 20;
     private static final int ANSWER_WINDOW_TICKS = 15 * TICKS_PER_SECOND;
     private static final String PREFIX = "[Викторина] ";
+    private static final Set<String> DOUBLE_WEIGHT_CATEGORIES = Set.of(
+            "Escape from Tarkov",
+            "Dunduk"
+    );
     private static final List<TriviaQuestion> QUESTIONS = TriviaQuestionBank.QUESTIONS;
     private static final Set<UUID> WRONG_ANSWER_PUNISHED = new HashSet<>();
 
@@ -182,7 +188,7 @@ public final class TriviaEngine {
                 }
             }
 
-            selected = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
+            selected = selectWeightedQuestion(candidates);
             lastQuestionId = configId(selected);
             currentQuestion = selected;
             ticksRemaining = ANSWER_WINDOW_TICKS;
@@ -196,6 +202,34 @@ public final class TriviaEngine {
                 player.serverLevel().playSound(null, player.blockPosition(), SoundEvents.NOTE_BLOCK_BELL.value(),
                         SoundSource.PLAYERS, 1.0F, 1.15F));
         return true;
+    }
+
+    private static TriviaQuestion selectWeightedQuestion(List<TriviaQuestion> candidates) {
+        Map<String, List<TriviaQuestion>> questionsByCategory = new LinkedHashMap<>();
+        for (TriviaQuestion question : candidates) {
+            questionsByCategory.computeIfAbsent(question.category(), ignored -> new ArrayList<>()).add(question);
+        }
+
+        int totalWeight = 0;
+        for (String category : questionsByCategory.keySet()) {
+            totalWeight += categoryWeight(category);
+        }
+
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        int categoryRoll = random.nextInt(totalWeight);
+        for (Map.Entry<String, List<TriviaQuestion>> entry : questionsByCategory.entrySet()) {
+            categoryRoll -= categoryWeight(entry.getKey());
+            if (categoryRoll < 0) {
+                List<TriviaQuestion> categoryQuestions = entry.getValue();
+                return categoryQuestions.get(random.nextInt(categoryQuestions.size()));
+            }
+        }
+
+        throw new IllegalStateException("Unable to select a trivia category");
+    }
+
+    private static int categoryWeight(String category) {
+        return DOUBLE_WEIGHT_CATEGORIES.contains(category) ? 2 : 1;
     }
 
     private static RewardResult reward(ServerPlayer player) {
