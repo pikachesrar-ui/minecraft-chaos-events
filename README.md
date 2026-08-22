@@ -107,7 +107,7 @@ On Windows PowerShell:
 .\gradlew.bat build
 ```
 
-The compiled JAR is written to `build/libs/`. Development clients and servers can be launched with `./gradlew runClient` and `./gradlew runServer`. Local-only assets may be kept under the Git-ignored `src/private/resources` directory and included in a separately versioned build with `./gradlew clean build -Pmod_version=0.3.4-private.1`.
+The compiled JAR is written to `build/libs/`. Development clients and servers can be launched with `./gradlew runClient` and `./gradlew runServer`. Local-only assets may be kept under the Git-ignored `src/private/resources` directory and included in a separately versioned build with `./gradlew clean build -Pmod_version=0.3.5-private.1`.
 
 Every push and pull request is compiled by GitHub Actions. Tags matching `v*` build the project and publish the resulting JAR as a GitHub release.
 
