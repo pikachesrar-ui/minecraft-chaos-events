@@ -73,6 +73,7 @@ public final class BigEventEngine {
         events.add(ExternalDisasterEvent.METEOR_SHOWER);
         events.add(AcceleratedTimeEvent.INSTANCE);
         events.add(SpatialSwapEvent.INSTANCE);
+        events.add(SharedVitalsEvent.INSTANCE);
         events.addAll(List.of(ExpandedChaosEvent.values()));
         events.addAll(List.of(InternetChaosEvent.values()));
         EVENTS = List.copyOf(events);
