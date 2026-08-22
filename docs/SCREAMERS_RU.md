@@ -28,14 +28,14 @@ src/private/resources/assets/chaosevents/sounds/screamers/10.ogg
 Для отдельного имени приватной версии выполните в Windows PowerShell:
 
 ```powershell
-.\gradlew.bat clean build -Pmod_version=0.3.4-private.1
+.\gradlew.bat clean build "-Pmod_version=0.3.5-private.1"
 ```
 
-Готовый файл будет называться `build/libs/chaosevents-0.3.4-private.1.jar`. Перед обновлением
+Готовый файл будет называться `build/libs/chaosevents-0.3.5-private.1.jar`. Перед обновлением
 исходников используйте `git pull --ff-only`: приватные ресурсы останутся на месте.
 
 Проверьте содержимое готового JAR в PowerShell:
 
 ```powershell
-tar -tf build/libs/chaosevents-0.3.4-private.1.jar | Select-String 'screamers/[0-9]+\.(png|ogg)'
+tar -tf build/libs/chaosevents-0.3.5-private.1.jar | Select-String 'screamers/[0-9]+\.(png|ogg)'
 ```
