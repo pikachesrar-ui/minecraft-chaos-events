@@ -73,6 +73,7 @@ public final class BigEventEngine {
         events.add(ExternalDisasterEvent.METEOR_SHOWER);
         events.add(AcceleratedTimeEvent.INSTANCE);
         events.add(SpatialSwapEvent.INSTANCE);
+        events.add(SharedVitalsEvent.INSTANCE);
         events.addAll(List.of(ExpandedChaosEvent.values()));
         events.addAll(List.of(InternetChaosEvent.values()));
         EVENTS = List.copyOf(events);
@@ -89,7 +90,9 @@ public final class BigEventEngine {
 
     private BigEventEngine() {}
 
-    public static synchronized void startSession() {
+    public static synchronized void startSession(MinecraftServer server) {
+        TemporaryEventItems.invalidate();
+        TemporaryEventItems.purgeInactive(server);
         activeEvent = null;
         elapsedTicks = 0;
         activeDurationTicks = 0;
@@ -130,7 +133,11 @@ public final class BigEventEngine {
     }
 
     public static synchronized void stopSession(MinecraftServer server) {
-        if (activeEvent != null) activeEvent.stop(server);
+        if (activeEvent != null) {
+            ChaosEvent stopped = activeEvent;
+            stopped.stop(server);
+            TemporaryEventItems.finish(server, stopped.id());
+        }
         activeEvent = null;
         elapsedTicks = 0;
         activeDurationTicks = 0;
@@ -149,6 +156,7 @@ public final class BigEventEngine {
     }
 
     public static synchronized void reset() {
+        TemporaryEventItems.invalidate();
         activeEvent = null;
         elapsedTicks = 0;
         activeDurationTicks = 0;
@@ -244,6 +252,7 @@ public final class BigEventEngine {
             activeDurationTicks = ticksRemaining;
             selectedDurationTicks = ticksRemaining;
         }
+        TemporaryEventItems.begin(selected.id());
         selected.start(server);
         announceEventStart(server, selected, selectedDurationTicks);
         updateBossBar(server);
@@ -327,6 +336,7 @@ public final class BigEventEngine {
         hideBossBar();
         if (finished != null) {
             finished.stop(server);
+            TemporaryEventItems.finish(server, finished.id());
             if (announce) broadcast(server, "Большой ивент завершён. Хаос ненадолго отступил.");
         }
     }
@@ -400,6 +410,7 @@ public final class BigEventEngine {
         EVENT_TIMER.removePlayer(player);
         if (event != null) {
             event.excludePlayer(server, player);
+            TemporaryEventItems.removeFromPlayerForActiveEvent(player, event.id());
         }
     }
 

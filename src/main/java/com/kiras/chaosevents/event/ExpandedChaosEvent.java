@@ -363,7 +363,7 @@ public enum ExpandedChaosEvent implements ChaosEvent {
                     player.getX() + random.nextDouble(-8.0, 8.0),
                     player.getY() + random.nextDouble(10.0, 17.0),
                     player.getZ() + random.nextDouble(-8.0, 8.0),
-                    new ItemStack(item));
+                    TemporaryEventItems.mark(new ItemStack(item)));
             entity.setDeltaMovement(random.nextDouble(-0.08, 0.08), -0.25, random.nextDouble(-0.08, 0.08));
             level.addFreshEntity(entity);
         }
@@ -599,7 +599,10 @@ public enum ExpandedChaosEvent implements ChaosEvent {
     }
 
     private static void giveOrDrop(ServerPlayer player, ItemStack stack) {
-        if (!player.getInventory().add(stack.copy())) player.drop(stack.copy(), false);
+        ItemStack temporary = TemporaryEventItems.mark(stack.copy());
+        if (!player.getInventory().add(temporary) && !temporary.isEmpty()) {
+            player.drop(temporary, false);
+        }
     }
 
     private static void launchSkyward(ServerPlayer player) {

@@ -2,6 +2,7 @@ package com.kiras.chaosevents.event;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -26,6 +27,7 @@ import net.minecraft.world.entity.monster.Slime;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
@@ -234,7 +236,7 @@ public enum InternetChaosEvent implements ChaosEvent {
             case DAY_WEATHER_RULES -> changeDayWeatherRules(server);
             case DESERT_GANG -> forPlayers(server, player -> spawnRandomGroup(player, DESERT_MOBS, 4));
             case DIG_HOLE -> forPlayers(server, InternetChaosEvent::digHole);
-            case DIOS_BEST_FRIEND -> giveAll(server, new ItemStack(Items.TOTEM_OF_UNDYING));
+            case DIOS_BEST_FRIEND -> givePermanentAll(server, new ItemStack(Items.TOTEM_OF_UNDYING));
             case EXTRA_HEALTH -> forPlayers(server, player -> {
                 int amplifier = ThreadLocalRandom.current().nextInt(10) == 0 ? 9 : 4;
                 effect(player, MobEffects.HEALTH_BOOST, 20 * maxDurationSeconds + 40, amplifier);
@@ -249,8 +251,7 @@ public enum InternetChaosEvent implements ChaosEvent {
             case JUNGLE_GANG -> forPlayers(server, player -> spawnRandomGroup(player, JUNGLE_MOBS, 4));
             case KILLER_BUNNY -> forPlayers(server, player -> runAtPlayer(player,
                     "summon minecraft:rabbit ~2 ~ ~ {RabbitType:99}"));
-            case KNOCKBACK_SWORD -> forPlayers(server, player -> runAsPlayer(player,
-                    "give @s minecraft:wooden_sword[minecraft:enchantments={levels:{\"minecraft:knockback\":10}}] 1"));
+            case KNOCKBACK_SWORD -> forPlayers(server, InternetChaosEvent::giveKnockbackSword);
             case LAUNCH_PLAYER_UP -> forPlayers(server, player -> {
                 effect(player, MobEffects.SLOW_FALLING, 20 * 18, 0);
                 effect(player, MobEffects.DAMAGE_RESISTANCE, 20 * 18, 4);
@@ -523,8 +524,29 @@ public enum InternetChaosEvent implements ChaosEvent {
         forPlayers(server, player -> giveOrDrop(player, stack.copy()));
     }
 
+    private static void givePermanentAll(MinecraftServer server, ItemStack stack) {
+        forPlayers(server, player -> givePermanentOrDrop(player, stack.copy()));
+    }
+
     private static void giveOrDrop(ServerPlayer player, ItemStack stack) {
-        if (!player.getInventory().add(stack.copy())) player.drop(stack.copy(), false);
+        ItemStack temporary = TemporaryEventItems.mark(stack.copy());
+        if (!player.getInventory().add(temporary) && !temporary.isEmpty()) {
+            player.drop(temporary, false);
+        }
+    }
+
+    private static void givePermanentOrDrop(ServerPlayer player, ItemStack stack) {
+        if (!player.getInventory().add(stack) && !stack.isEmpty()) {
+            player.drop(stack, false);
+        }
+    }
+
+    private static void giveKnockbackSword(ServerPlayer player) {
+        ItemStack sword = new ItemStack(Items.WOODEN_SWORD);
+        sword.enchant(player.registryAccess()
+                .lookupOrThrow(Registries.ENCHANTMENT)
+                .getOrThrow(Enchantments.KNOCKBACK), 10);
+        giveOrDrop(player, sword);
     }
 
     private static void broadcast(MinecraftServer server, String text) {
@@ -637,7 +659,7 @@ public enum InternetChaosEvent implements ChaosEvent {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         for (int i = 0; i < count; i++) {
             Item item = FOOD_ITEMS.get(random.nextInt(FOOD_ITEMS.size()));
-            ItemStack stack = new ItemStack(item, random.nextInt(1, 4));
+            ItemStack stack = TemporaryEventItems.mark(new ItemStack(item, random.nextInt(1, 4)));
             Entity entity = new net.minecraft.world.entity.item.ItemEntity(
                     player.serverLevel(),
                     player.getX() + random.nextDouble(-7.0, 7.0),

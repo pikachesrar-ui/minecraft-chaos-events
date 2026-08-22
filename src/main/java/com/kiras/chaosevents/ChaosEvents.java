@@ -8,6 +8,7 @@ import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.event.ExpandedChaosEvent;
 import com.kiras.chaosevents.event.InternetChaosEvent;
+import com.kiras.chaosevents.event.TemporaryEventItems;
 import com.kiras.chaosevents.integration.PlacesRealitySlipManager;
 import com.kiras.chaosevents.network.ChaosNetwork;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
@@ -21,6 +22,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModContainer;
@@ -29,6 +31,9 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerContainerEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
@@ -68,6 +73,27 @@ public final class ChaosEvents {
     public void onServerStopping(ServerStoppingEvent event) {
         ChaosSessionManager.shutdown(event.getServer());
         LOGGER.info("Chaos Events: server stopping; active mechanics cleaned up");
+    }
+
+    @SubscribeEvent
+    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            TemporaryEventItems.purgeInactive(player);
+        }
+    }
+
+    @SubscribeEvent
+    public void onContainerOpened(PlayerContainerEvent.Open event) {
+        if (event.getEntity() instanceof ServerPlayer) {
+            TemporaryEventItems.purgeContainer(event.getContainer());
+        }
+    }
+
+    @SubscribeEvent
+    public void onEntityJoinLevel(EntityJoinLevelEvent event) {
+        if (!event.getLevel().isClientSide() && event.getEntity() instanceof ItemEntity item) {
+            TemporaryEventItems.discardIfInactive(item);
+        }
     }
 
     @SubscribeEvent

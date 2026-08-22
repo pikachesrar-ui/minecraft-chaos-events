@@ -6,6 +6,7 @@ import com.kiras.chaosevents.config.ChaosConfigEntry;
 import com.kiras.chaosevents.config.ChaosConfigManager;
 import com.kiras.chaosevents.network.ConfigSavePayload;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -222,7 +223,11 @@ public final class ChaosConfigScreen extends Screen {
             }
         }
 
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        // Screen#render draws the background before widgets. Calling it here used to apply the
+        // blur a second time over the labels we just rendered, while the buttons stayed sharp.
+        for (Renderable renderable : renderables) {
+            renderable.render(guiGraphics, mouseX, mouseY, partialTick);
+        }
     }
 
     @Override

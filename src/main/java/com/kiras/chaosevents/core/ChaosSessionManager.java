@@ -88,7 +88,7 @@ public final class ChaosSessionManager {
 
     /**
      * The Places return safety loop is deliberately independent from the public session state.
-     * A player must still return after 5-10 real minutes even if the session is paused or world
+     * A player must still return after 3-9 real minutes even if the session is paused or world
      * acceleration changes how often auxiliary systems run.
      */
     public static void tick(MinecraftServer server) {
@@ -156,7 +156,7 @@ public final class ChaosSessionManager {
     public static String getSpatialStatus() { return SpatialSwapManager.getStatusText(); }
 
     private static void startEngines(MinecraftServer server) {
-        BigEventEngine.startSession();
+        BigEventEngine.startSession(server);
         MicroPrankEngine.startSession();
         TriviaEngine.startSession();
         SpatialSwapManager.startSession();
