@@ -236,7 +236,7 @@ public enum InternetChaosEvent implements ChaosEvent {
             case DAY_WEATHER_RULES -> changeDayWeatherRules(server);
             case DESERT_GANG -> forPlayers(server, player -> spawnRandomGroup(player, DESERT_MOBS, 4));
             case DIG_HOLE -> forPlayers(server, InternetChaosEvent::digHole);
-            case DIOS_BEST_FRIEND -> giveAll(server, new ItemStack(Items.TOTEM_OF_UNDYING));
+            case DIOS_BEST_FRIEND -> givePermanentAll(server, new ItemStack(Items.TOTEM_OF_UNDYING));
             case EXTRA_HEALTH -> forPlayers(server, player -> {
                 int amplifier = ThreadLocalRandom.current().nextInt(10) == 0 ? 9 : 4;
                 effect(player, MobEffects.HEALTH_BOOST, 20 * maxDurationSeconds + 40, amplifier);
@@ -524,10 +524,20 @@ public enum InternetChaosEvent implements ChaosEvent {
         forPlayers(server, player -> giveOrDrop(player, stack.copy()));
     }
 
+    private static void givePermanentAll(MinecraftServer server, ItemStack stack) {
+        forPlayers(server, player -> givePermanentOrDrop(player, stack.copy()));
+    }
+
     private static void giveOrDrop(ServerPlayer player, ItemStack stack) {
         ItemStack temporary = TemporaryEventItems.mark(stack.copy());
         if (!player.getInventory().add(temporary) && !temporary.isEmpty()) {
             player.drop(temporary, false);
+        }
+    }
+
+    private static void givePermanentOrDrop(ServerPlayer player, ItemStack stack) {
+        if (!player.getInventory().add(stack) && !stack.isEmpty()) {
+            player.drop(stack, false);
         }
     }
 
