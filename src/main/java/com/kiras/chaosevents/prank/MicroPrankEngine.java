@@ -260,12 +260,14 @@ public final class MicroPrankEngine {
         }
     }
 
-    /** A visible, audible hit that always removes exactly half a heart and cannot finish the player. */
+    /** A visible hit that removes exactly half a heart, cannot finish the player and knocks them away. */
     private static void halfHeartHit(ServerPlayer player) {
         float oldHealth = player.getHealth();
         if (oldHealth > 1.0F) {
             player.setHealth(oldHealth - 1.0F);
         }
+        double angle = ThreadLocalRandom.current().nextDouble(Math.PI * 2.0D);
+        player.knockback(0.4D, Math.cos(angle), Math.sin(angle));
         player.animateHurt(player.getYRot());
         player.hurtMarked = true;
         player.serverLevel().broadcastDamageEvent(player, player.damageSources().generic());
@@ -449,7 +451,7 @@ public final class MicroPrankEngine {
         ENTITY_FLING("Подброс окружения", "ближайшие сущности разлетелись вверх"),
         INVISIBLE_PLAYER("Исчезновение", "игрок временно стал невидимым"),
         TOTAL_HEAL("Неожиданная помощь", "здоровье и голод полностью восстановились"),
-        HALF_HEART_HIT("Внезапный удар", "игрок получил ровно половину сердца урона");
+        HALF_HEART_HIT("Внезапный удар", "игрок получил полсердца урона и отлетел в случайную сторону");
 
         private final String displayName;
         private final String description;
