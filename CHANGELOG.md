@@ -13,6 +13,8 @@ Notable changes to Chaos Events are documented here. The project follows [Semant
 
 ### Changed
 
+- The sudden-hit micro-prank now also knocks the player in a random horizontal direction with the
+  force of a normal unenchanted player attack.
 - Xaero's Minimap is disabled while a player is inside Places and restored on exit.
 - Chaos-managed Places arrival areas are restored from Places' native templates before every visit.
 - Replaced NeoForge template metadata with project-specific information.
