@@ -6,12 +6,15 @@ Notable changes to Chaos Events are documented here. The project follows [Semant
 
 ### Added
 
+- A nonlethal micro-prank that visibly hits one player for exactly half a heart.
 - Public project documentation in English and Russian.
 - Contribution guidelines and GitHub issue templates.
 - Automatic GitHub releases for version tags.
 
 ### Changed
 
+- Xaero's Minimap is disabled while a player is inside Places and restored on exit.
+- Chaos-managed Places arrival areas are restored from Places' native templates before every visit.
 - Replaced NeoForge template metadata with project-specific information.
 - Adopted the MIT License for the public project.
 
