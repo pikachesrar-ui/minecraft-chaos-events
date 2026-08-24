@@ -256,7 +256,19 @@ public final class MicroPrankEngine {
             case ENTITY_FLING -> ExpandedPrankEffects.flingNearbyEntities(player);
             case INVISIBLE_PLAYER -> ExpandedPrankEffects.invisiblePlayer(player);
             case TOTAL_HEAL -> ExpandedPrankEffects.totalHeal(player);
+            case HALF_HEART_HIT -> halfHeartHit(player);
         }
+    }
+
+    /** A visible, audible hit that always removes exactly half a heart and cannot finish the player. */
+    private static void halfHeartHit(ServerPlayer player) {
+        float oldHealth = player.getHealth();
+        if (oldHealth > 1.0F) {
+            player.setHealth(oldHealth - 1.0F);
+        }
+        player.animateHurt(player.getYRot());
+        player.hurtMarked = true;
+        player.serverLevel().broadcastDamageEvent(player, player.damageSources().generic());
     }
 
     private static void announcePrank(MinecraftServer server, ServerPlayer target, PrankType prank) {
@@ -436,7 +448,8 @@ public final class MicroPrankEngine {
         XP_BURST("Всплеск опыта", "вокруг игрока появились сферы опыта"),
         ENTITY_FLING("Подброс окружения", "ближайшие сущности разлетелись вверх"),
         INVISIBLE_PLAYER("Исчезновение", "игрок временно стал невидимым"),
-        TOTAL_HEAL("Неожиданная помощь", "здоровье и голод полностью восстановились");
+        TOTAL_HEAL("Неожиданная помощь", "здоровье и голод полностью восстановились"),
+        HALF_HEART_HIT("Внезапный удар", "игрок получил ровно половину сердца урона");
 
         private final String displayName;
         private final String description;
