@@ -648,7 +648,7 @@ public final class PlacesRealitySlipManager {
                     origin.getX(), origin.getY(), origin.getZ(),
                     origin.getX() + size.getX(), origin.getY() + size.getY(), origin.getZ() + size.getZ()
             );
-            level.getEntities(null, bounds, entity -> !(entity instanceof ServerPlayer))
+            level.getEntities((Entity) null, bounds, entity -> !(entity instanceof ServerPlayer))
                     .forEach(Entity::discard);
         }
 
