@@ -45,4 +45,4 @@ jobs:
           name: chaos-events-${{ github.sha }}
           path: build/libs/*.jar
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
