@@ -15,6 +15,26 @@ Notable changes to Chaos Events are documented here. The project follows [Semant
 - Replaced NeoForge template metadata with project-specific information.
 - Adopted the MIT License for the public project.
 
+## [0.3.6] — 2026-08-31
+
+### Added
+
+- Added the nonlethal `Внезапный удар` micro-prank: it removes exactly half a heart when safe to do so and knocks the player in a random horizontal direction.
+- Chaos-managed Places visits now restore the selected destination's native arrival templates before teleporting players, resetting the starting area for the next visit.
+- Added client-side Xaero's Minimap suppression inside every `places:*` dimension using Xaero's `no_minimap` effect when it is available.
+
+### Changed
+
+- Every Chaos-triggered Places transfer now takes at least two eligible players when two or more are online. Solo transfer remains possible only when one eligible player is available.
+- The minimum-two rule applies to scheduled slips, beds, ender pearls, dark doors, deep-cave triggers and the operator Places test path through the shared transfer pipeline.
+- `Лавовые гейзеры` no longer ignite the player; the event now launches the player upward and grants a short Slow Falling effect.
+- `Огненный шторм` was replaced by `Пепельная буря`, using smoke, darkness, slowness, nausea and wind-like knockback instead of directly setting the player on fire.
+
+### Fixed
+
+- Fixed Xaero's Minimap remaining visible after entering Places in client setups where the previous server-message approach was ineffective.
+- Consolidated the previously unmerged 0.3.6 work into `main` so the version number and feature set no longer diverge between public and private builds.
+
 ## [0.3.4] — 2026-08-15
 
 ### Added
