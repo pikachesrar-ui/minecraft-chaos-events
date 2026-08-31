@@ -30,13 +30,13 @@ The session is controlled by an operator and does not start automatically. Use `
 ## Highlights
 
 - **Large chaos events** with a boss-bar timer, configurable randomized breaks and no immediate repeats.
-- **30 micro pranks** aimed at individual players on a configurable interval, designed to be disruptive without being deliberately lethal. The 28 regular pranks do not repeat within a cycle; screamers may recur but never immediately repeat when alternatives are enabled.
+- **31 micro pranks** aimed at individual players on a configurable interval, designed to be disruptive without being deliberately lethal. The 29 regular pranks do not repeat within a cycle; screamers may recur but never immediately repeat when alternatives are enabled.
 - **Trivia rounds** on a configurable interval with a 15-second answer window, rewards and penalties for mistakes.
 - **Spatial swaps** that exchange online players between positions and dimensions, including a cooperative return-anchor mechanic and a configurable scheduled-swap timer.
 - **In-game content configuration** through four books that toggle individual events, pranks, trivia questions and swap triggers.
 - **Accelerated world event** that runs the world at 200 TPS while keeping players close to normal speed.
 - **Optional disaster integrations** for [Weather2](https://www.curseforge.com/minecraft/mc-mods/weather-storms-tornadoes) tornadoes and [Oh My, Meteors!](https://www.curseforge.com/minecraft/mc-mods/oh-my-meteors) meteor showers when those mods are installed.
-- **Optional Places integration** with rare unannounced reality slips for one or two players, per-player isolation from large events and spatial swaps while inside any Places dimension, and automatic return to the exact pre-entry location after 3–9 minutes. Native Places door entries receive the same safety timer; leaving through a Places exit cancels it. Trigger details are intentionally left undocumented so the mechanic can remain a surprise.
+- **Optional Places integration** with rare unannounced reality slips. Chaos-triggered slips take at least two eligible players when two or more are online, and only fall back to a solo transfer when a single eligible player is available. All travelers use the same random native destination, and the selected arrival area is restored from Places' own templates before a managed visit. Players inside any `places:*` dimension are isolated from large events and spatial swaps, Xaero's Minimap is hidden when its `no_minimap` effect is available, and managed visitors return to the exact pre-entry location after 3–9 minutes. Native Places door entries receive the same safety timer; leaving through a Places exit cancels it. Trigger details are intentionally left undocumented so the mechanic can remain a surprise.
 - English and Russian item localization; server announcements are currently Russian-first.
 
 ## Requirements
@@ -79,7 +79,7 @@ All commands require permission level 2.
 | `/chaos test screamer` | Show a screamer to the selected player |
 | `/chaos test trivia` | Start a trivia question |
 | `/chaos test swap` | Force a spatial swap; requires at least two players |
-| `/chaos test places` | Force a Places reality slip for the executing player when Places is installed |
+| `/chaos test places` | Force a Places reality slip; the shared transfer logic adds a second eligible player when possible |
 
 ## In-game configuration
 
@@ -107,7 +107,7 @@ On Windows PowerShell:
 .\gradlew.bat build
 ```
 
-The compiled JAR is written to `build/libs/`. Development clients and servers can be launched with `./gradlew runClient` and `./gradlew runServer`. Local-only assets may be kept under the Git-ignored `src/private/resources` directory and included in a separately versioned build with `./gradlew clean build -Pmod_version=0.3.5-private.1`.
+The compiled JAR is written to `build/libs/`. Development clients and servers can be launched with `./gradlew runClient` and `./gradlew runServer`. Local-only assets may be kept under the Git-ignored `src/private/resources` directory. For the current private build line, use `./gradlew clean build -Pmod_version=0.3.6-private.2`; this keeps local screamer assets out of Git while producing a distinct JAR name.
 
 Every push and pull request is compiled by GitHub Actions. Tags matching `v*` build the project and publish the resulting JAR as a GitHub release.
 
