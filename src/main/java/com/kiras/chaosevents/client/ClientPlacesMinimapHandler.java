@@ -14,7 +14,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.event.tick.ClientTickEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 /** Client-side fallback for Xaero's Minimap when the map mod is not installed on the server. */
 @EventBusSubscriber(modid = ChaosEvents.MODID, value = Dist.CLIENT)
@@ -39,11 +39,13 @@ public final class ClientPlacesMinimapHandler {
             return;
         }
 
-        Holder<MobEffect> noMinimap = BuiltInRegistries.MOB_EFFECT.get(XAERO_NO_MINIMAP).orElse(null);
-        if (noMinimap == null) {
+        ResourceLocation effectId = XAERO_NO_MINIMAP.location();
+        if (!BuiltInRegistries.MOB_EFFECT.containsKey(effectId)) {
             appliedByChaosEvents = false;
             return;
         }
+        MobEffect effect = BuiltInRegistries.MOB_EFFECT.get(effectId);
+        Holder<MobEffect> noMinimap = BuiltInRegistries.MOB_EFFECT.wrapAsHolder(effect);
 
         if (PlacesRealitySlipManager.isPlacesDimension(player.level())) {
             MobEffectInstance current = player.getEffect(noMinimap);
