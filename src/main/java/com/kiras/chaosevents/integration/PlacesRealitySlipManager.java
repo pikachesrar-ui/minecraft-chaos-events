@@ -3,6 +3,7 @@ package com.kiras.chaosevents.integration;
 import com.kiras.chaosevents.ChaosEvents;
 import com.kiras.chaosevents.event.BigEventEngine;
 import com.kiras.chaosevents.spatial.SpatialSwapManager;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -19,7 +20,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.Mirror;
+import net.minecraft.world.level.block.Rotation;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.fml.ModList;
 
 import java.lang.reflect.InvocationTargetException;
@@ -493,6 +499,11 @@ public final class PlacesRealitySlipManager {
             ChaosEvents.LOGGER.warn("Places reality slip has no available safe destination");
             return false;
         }
+        if (!refreshDestination(server, destination)) {
+            ChaosEvents.LOGGER.warn("Places reality slip cancelled because {} could not be refreshed",
+                    destination.dimensionId());
+            return false;
+        }
 
         Map<UUID, StoredPosition> origins = new HashMap<>();
         List<ServerPlayer> moved = new ArrayList<>();
@@ -612,6 +623,56 @@ public final class PlacesRealitySlipManager {
         SpatialSwapManager.excludePlayer(server, player);
     }
 
+    /**
+     * Restores the native Places start templates before a Chaos-managed visit. Places templates
+     * contain explicit air blocks, so placing them again also removes player modifications.
+     */
+    private static boolean refreshDestination(MinecraftServer server, PlacesDestination destination) {
+        ServerLevel level = server.getLevel(destination.dimension());
+        if (level == null) {
+            return false;
+        }
+
+        List<LoadedTemplate> templates = new ArrayList<>();
+        for (TemplatePlacement placement : destination.refreshTemplates()) {
+            StructureTemplate template = level.getStructureManager().getOrCreate(
+                    ResourceLocation.fromNamespaceAndPath(PLACES_NAMESPACE, placement.templateName()));
+            if (template.getSize().getX() <= 0 || template.getSize().getY() <= 0
+                    || template.getSize().getZ() <= 0) {
+                ChaosEvents.LOGGER.warn("Places refresh template {} is empty or unavailable",
+                        placement.templateName());
+                return false;
+            }
+            templates.add(new LoadedTemplate(placement, template));
+        }
+
+        for (LoadedTemplate loaded : templates) {
+            BlockPos origin = loaded.placement().origin();
+            var size = loaded.template().getSize();
+            AABB bounds = new AABB(
+                    origin.getX(), origin.getY(), origin.getZ(),
+                    origin.getX() + size.getX(), origin.getY() + size.getY(), origin.getZ() + size.getZ()
+            );
+            level.getEntities((Entity) null, bounds, entity -> !(entity instanceof ServerPlayer))
+                    .forEach(Entity::discard);
+        }
+
+        StructurePlaceSettings settings = new StructurePlaceSettings()
+                .setRotation(Rotation.NONE)
+                .setMirror(Mirror.NONE)
+                .setIgnoreEntities(false);
+        for (LoadedTemplate loaded : templates) {
+            BlockPos origin = loaded.placement().origin();
+            if (!loaded.template().placeInWorld(level, origin, origin, settings, level.random, 3)) {
+                ChaosEvents.LOGGER.warn("Places refresh failed while placing template {}",
+                        loaded.placement().templateName());
+                return false;
+            }
+        }
+        ChaosEvents.LOGGER.info("Refreshed Places arrival area for {}", destination.dimensionId());
+        return true;
+    }
+
     private static synchronized Method resolvePortalProcedure(PlacesDestination destination) {
         Method cached = PORTAL_PROCEDURES.get(destination);
         if (cached != null) {
@@ -686,26 +747,38 @@ public final class PlacesRealitySlipManager {
      * transitions (Pocket Room and Ridge portals) are deliberately excluded from random slips.
      */
     private enum PlacesDestination {
-        LEVEL_ZERO("rooms_0", "Level0PortalEntityCollidesInTheBlockProcedure"),
-        MANILA("manila_dim", "ManillaPortalEntityCollidesInTheBlockProcedure"),
-        RED_ROAD("red_road_dim", "RedRoadPortalEntityCollidesInTheBlockProcedure"),
-        THE_END("the_end_dim", "TheEndPortalEntityCollidesInTheBlockProcedure"),
-        STRUCTURE_BRIDGE("structure_bridge_dim", "StructureBridgePortalOnEntityProcedure"),
-        WARP_TUNNEL("warp_tunnel", "WarpTunnelTeleportEntityCollidesProcedure");
+        LEVEL_ZERO("rooms_0", "Level0PortalEntityCollidesInTheBlockProcedure",
+                template("y_start_room", -23, 26, -23)),
+        MANILA("manila_dim", "ManillaPortalEntityCollidesInTheBlockProcedure",
+                template("manilla_room_dim", -23, 26, -23)),
+        RED_ROAD("red_road_dim", "RedRoadPortalEntityCollidesInTheBlockProcedure",
+                template("rr_west_wall", -70, 77, -23),
+                template("rr_houses", -23, 77, -23),
+                template("rr_east_wall", 24, 77, -23)),
+        THE_END("the_end_dim", "TheEndPortalEntityCollidesInTheBlockProcedure",
+                template("the_end_echo", -23, 26, -23),
+                template("the_end_echo_add", -23, 26, 24)),
+        STRUCTURE_BRIDGE("structure_bridge_dim", "StructureBridgePortalOnEntityProcedure",
+                template("structure_bridge_start", -23, 50, -23),
+                template("structure_bridge_bottom_1", -11, 2, -23)),
+        WARP_TUNNEL("warp_tunnel", "WarpTunnelTeleportEntityCollidesProcedure",
+                template("warp_tunnel_empty", 0, 20, 0));
 
         private static final String PROCEDURE_PACKAGE = "net.mcreator.places.procedures.";
 
         private final String dimensionId;
         private final ResourceKey<Level> dimension;
         private final String procedureClass;
+        private final List<TemplatePlacement> refreshTemplates;
 
-        PlacesDestination(String dimensionPath, String procedureClassName) {
+        PlacesDestination(String dimensionPath, String procedureClassName, TemplatePlacement... refreshTemplates) {
             this.dimensionId = PLACES_NAMESPACE + ":" + dimensionPath;
             this.dimension = ResourceKey.create(
                     Registries.DIMENSION,
                     ResourceLocation.fromNamespaceAndPath(PLACES_NAMESPACE, dimensionPath)
             );
             this.procedureClass = PROCEDURE_PACKAGE + procedureClassName;
+            this.refreshTemplates = List.of(refreshTemplates);
         }
 
         String dimensionId() {
@@ -719,6 +792,20 @@ public final class PlacesRealitySlipManager {
         String procedureClass() {
             return procedureClass;
         }
+
+        List<TemplatePlacement> refreshTemplates() {
+            return refreshTemplates;
+        }
+
+        private static TemplatePlacement template(String name, int x, int y, int z) {
+            return new TemplatePlacement(name, new BlockPos(x, y, z));
+        }
+    }
+
+    private record TemplatePlacement(String templateName, BlockPos origin) {
+    }
+
+    private record LoadedTemplate(TemplatePlacement placement, StructureTemplate template) {
     }
 
     private record StoredPosition(ResourceKey<Level> dimension, double x, double y, double z, float yaw, float pitch) {
