@@ -25,17 +25,18 @@ src/private/resources/assets/chaosevents/sounds/screamers/10.ogg
 - регистр имени и путь должны совпадать точно;
 - файлы из `src/private/resources` попадут только в локально собранный JAR и не попадут в GitHub Actions.
 
-Для отдельного имени приватной версии выполните в Windows PowerShell:
+После обновления до 0.3.6 для следующей локальной приватной сборки используйте отдельное имя
+`0.3.6-private.2`, чтобы не перепутать её с уже собиравшейся `0.3.6-private.1`:
 
 ```powershell
-.\gradlew.bat clean build "-Pmod_version=0.3.5-private.1"
+.\gradlew.bat clean build "-Pmod_version=0.3.6-private.2"
 ```
 
-Готовый файл будет называться `build/libs/chaosevents-0.3.5-private.1.jar`. Перед обновлением
+Готовый файл будет называться `build/libs/chaosevents-0.3.6-private.2.jar`. Перед обновлением
 исходников используйте `git pull --ff-only`: приватные ресурсы останутся на месте.
 
 Проверьте содержимое готового JAR в PowerShell:
 
 ```powershell
-tar -tf build/libs/chaosevents-0.3.5-private.1.jar | Select-String 'screamers/[0-9]+\.(png|ogg)'
+tar -tf build/libs/chaosevents-0.3.6-private.2.jar | Select-String 'screamers/[0-9]+\.(png|ogg)'
 ```
