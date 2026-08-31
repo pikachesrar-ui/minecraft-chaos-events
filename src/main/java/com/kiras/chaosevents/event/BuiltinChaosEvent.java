@@ -52,7 +52,7 @@ public enum BuiltinChaosEvent implements ChaosEvent {
     BLAZE_SWARM("blaze_swarm", "Рой ифритов", EventScope.NETHER, true),
     MAGMA_MARCH("magma_march", "Марш магмы", EventScope.NETHER, true),
     SOUL_CRUSH("soul_crush", "Давление душ", EventScope.NETHER, true),
-    FIRESTORM("firestorm", "Огненный шторм", EventScope.NETHER, true),
+    FIRESTORM("firestorm", "Пепельная буря", EventScope.NETHER, true),
     PIGLIN_HUNT("piglin_hunt", "Охота пиглинов", EventScope.NETHER, true),
 
     VOID_LIGHTNESS("void_lightness", "Срыв в Бездну", EventScope.END, true),
@@ -189,15 +189,20 @@ public enum BuiltinChaosEvent implements ChaosEvent {
             case LIGHTNING_HUNT -> forPlayers(server, BuiltinChaosEvent::strikeLightning);
             case METEOR_BARRAGE -> forPlayers(server, player -> spawnMeteor(player, 2));
             case LAVA_GEYSERS -> forPlayers(server, player -> {
-                player.igniteForSeconds(5.0F);
-                player.setDeltaMovement(player.getDeltaMovement().add(0.0, 1.2, 0.0));
+                player.setDeltaMovement(player.getDeltaMovement().add(0.0, 1.25, 0.0));
+                effect(player, MobEffects.SLOW_FALLING, 80, 0);
                 player.serverLevel().sendParticles(ParticleTypes.LAVA, player.getX(), player.getY(), player.getZ(),
                         35, 1.5, 0.25, 1.5, 0.15);
             });
             case FIRESTORM -> forPlayers(server, player -> {
-                player.igniteForSeconds(5.0F);
-                player.serverLevel().sendParticles(ParticleTypes.FLAME, player.getX(), player.getY() + 1.0,
-                        player.getZ(), 45, 1.4, 1.2, 1.4, 0.08);
+                ThreadLocalRandom random = ThreadLocalRandom.current();
+                effect(player, MobEffects.DARKNESS, 80, 0);
+                effect(player, MobEffects.MOVEMENT_SLOWDOWN, 70, 1);
+                effect(player, MobEffects.CONFUSION, 80, 0);
+                player.setDeltaMovement(player.getDeltaMovement().add(
+                        random.nextDouble(-0.45, 0.45), 0.08, random.nextDouble(-0.45, 0.45)));
+                player.serverLevel().sendParticles(ParticleTypes.SMOKE, player.getX(), player.getY() + 1.0,
+                        player.getZ(), 55, 1.8, 1.3, 1.8, 0.06);
             });
             case DRAGON_BREATH -> forPlayers(server, player -> {
                 effect(player, MobEffects.POISON, 100, 1);
@@ -265,10 +270,12 @@ public enum BuiltinChaosEvent implements ChaosEvent {
             case INFERNAL_HUNGER -> removeEffects(player, MobEffects.HUNGER, MobEffects.WEAKNESS);
             case SOUL_CRUSH -> removeEffects(player,
                     MobEffects.MOVEMENT_SLOWDOWN, MobEffects.DARKNESS, MobEffects.WEAKNESS);
+            case LAVA_GEYSERS -> removeEffects(player, MobEffects.SLOW_FALLING);
+            case FIRESTORM -> removeEffects(player,
+                    MobEffects.DARKNESS, MobEffects.MOVEMENT_SLOWDOWN, MobEffects.CONFUSION);
             case ENDER_STATIC -> removeEffects(player, MobEffects.CONFUSION, MobEffects.DARKNESS);
             case VOID_SILENCE -> removeEffects(player, MobEffects.BLINDNESS, MobEffects.WEAKNESS);
             case DRAGON_BREATH -> removeEffects(player, MobEffects.POISON);
-            case LAVA_GEYSERS, FIRESTORM -> player.clearFire();
             default -> { }
         }
     }
