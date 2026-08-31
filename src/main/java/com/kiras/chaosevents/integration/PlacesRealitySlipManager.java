@@ -60,7 +60,6 @@ public final class PlacesRealitySlipManager {
     private static final int ENDER_PEARL_CHANCE = 100;
     private static final int BED_CHANCE = 90;
     private static final int PAIRED_BED_CHANCE = 12;
-    private static final int SCHEDULED_PAIR_CHANCE = 4;
     private static final double NEARBY_BED_PLAYER_DISTANCE_SQUARED = 6.0 * 6.0;
     private static final int DARK_DOOR_CHANCE = 80;
     private static final int DEEP_CAVE_CHANCE = 180;
@@ -420,19 +419,7 @@ public final class PlacesRealitySlipManager {
 
         if (!candidates.isEmpty()) {
             ServerPlayer target = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
-            List<ServerPlayer> targets = new ArrayList<>();
-            targets.add(target);
-            if (ThreadLocalRandom.current().nextInt(SCHEDULED_PAIR_CHANCE) == 0) {
-                List<ServerPlayer> partners = server.getPlayerList().getPlayers().stream()
-                        .filter(player -> !player.isSpectator())
-                        .filter(player -> !isInPlacesDimension(player))
-                        .filter(player -> !player.getUUID().equals(target.getUUID()))
-                        .toList();
-                if (!partners.isEmpty()) {
-                    targets.add(partners.get(ThreadLocalRandom.current().nextInt(partners.size())));
-                }
-            }
-            triggerGroupSlip(server, targets, targets.size() > 1 ? "scheduled_pair" : "scheduled", false);
+            triggerSlip(server, target, "scheduled", false);
         }
 
         synchronized (PlacesRealitySlipManager.class) {
@@ -485,13 +472,15 @@ public final class PlacesRealitySlipManager {
             return false;
         }
 
-        List<ServerPlayer> players = requestedPlayers.stream()
+        List<ServerPlayer> validatedPlayers = requestedPlayers.stream()
                 .filter(player -> player != null && !player.isSpectator() && !isInPlacesDimension(player))
                 .distinct()
                 .toList();
-        if (players.isEmpty() || players.size() != requestedPlayers.size()) {
+        if (validatedPlayers.isEmpty() || validatedPlayers.size() != requestedPlayers.size()) {
             return false;
         }
+
+        List<ServerPlayer> players = ensureMinimumSlipGroup(server, validatedPlayers);
 
         synchronized (PlacesRealitySlipManager.class) {
             if (!ignoreCooldown && (!sessionActive || triggerCooldownTicks > 0 || hasOnlineActiveSlip(server))) {
@@ -540,6 +529,34 @@ public final class PlacesRealitySlipManager {
                     player.getGameProfile().getName(), reason, destination.dimensionId(), returnDelaySeconds);
         }
         return true;
+    }
+
+    /**
+     * Chaos-triggered Places slips are social by default: if at least two eligible players are
+     * online, a single-player trigger automatically takes one random companion along. An actual
+     * solo session still transfers the only available player.
+     */
+    private static List<ServerPlayer> ensureMinimumSlipGroup(
+            MinecraftServer server,
+            List<ServerPlayer> requestedPlayers
+    ) {
+        if (requestedPlayers.size() >= 2) {
+            return requestedPlayers;
+        }
+
+        List<ServerPlayer> companions = server.getPlayerList().getPlayers().stream()
+                .filter(player -> !player.isSpectator())
+                .filter(player -> !isInPlacesDimension(player))
+                .filter(player -> requestedPlayers.stream().noneMatch(
+                        requested -> requested.getUUID().equals(player.getUUID())))
+                .toList();
+        if (companions.isEmpty()) {
+            return requestedPlayers;
+        }
+
+        List<ServerPlayer> result = new ArrayList<>(requestedPlayers);
+        result.add(companions.get(ThreadLocalRandom.current().nextInt(companions.size())));
+        return List.copyOf(result);
     }
 
     private static ServerPlayer findNearbySleepingPartner(MinecraftServer server, ServerPlayer player) {
