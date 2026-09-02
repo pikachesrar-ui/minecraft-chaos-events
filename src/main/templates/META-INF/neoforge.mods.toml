@@ -30,3 +30,18 @@ config="chaosevents.mixins.json"
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
+
+# Optional ambience provider used by the Places Horror Layer. Chaos Events still runs without it.
+[[dependencies.${mod_id}]]
+    modId="serversidehorror"
+    type="optional"
+    versionRange="[4.2,5)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="deimos"
+    type="optional"
+    versionRange="[2.7,3)"
+    ordering="AFTER"
+    side="BOTH"
