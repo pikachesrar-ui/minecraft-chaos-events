@@ -1,0 +1,12 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.kiras.chaosevents.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "XaeroMinimapRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
