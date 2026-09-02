@@ -59,6 +59,9 @@ public final class ChaosSessionManager {
             SpatialSwapManager.reset();
             PlacesRealitySlipManager.reset();
             PlacesHorrorLayer.reset();
+            // Server-Side Horror is a provider for Places only. Keep its autonomous scheduler
+            // suppressed even while the public Chaos session itself is stopped.
+            PlacesHorrorLayer.startSession(null);
             return false;
         }
 
@@ -80,6 +83,10 @@ public final class ChaosSessionManager {
         SpatialSwapManager.reset();
         PlacesRealitySlipManager.reset();
         PlacesHorrorLayer.reset();
+        // This runs from ServerStartingEvent before normal gameplay ticks. startSession(null) only
+        // arms the optional Server-Side Horror bridge here; PlacesHorrorLayer.tick is not called
+        // while the Chaos state is STOPPED, so no Places ambience is emitted yet.
+        PlacesHorrorLayer.startSession(null);
     }
 
     public static synchronized void shutdown(MinecraftServer server) {
@@ -173,6 +180,10 @@ public final class ChaosSessionManager {
 
     private static void stopEngines(MinecraftServer server) {
         PlacesHorrorLayer.stopSession(server);
+        // stopSession restores Server-Side Horror's in-memory flags. Immediately re-arm controlled
+        // mode with no active Chaos tick so SSH cannot start global horror outside Places after
+        // /chaos stop. The process-local values disappear normally when the server shuts down.
+        PlacesHorrorLayer.startSession(null);
         BigEventEngine.stopSession(server);
         MicroPrankEngine.stopSession(server);
         TriviaEngine.stopSession();
