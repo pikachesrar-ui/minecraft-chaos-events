@@ -14,6 +14,9 @@ Operator-controlled chaos for Minecraft multiplayer: randomized world events,
 nonlethal micro pranks, timed trivia and spatial player swaps.
 '''
 
+[[mixins]]
+config="chaosevents.mixins.json"
+
 [[dependencies.${mod_id}]]
     modId="neoforge"
     type="required"
