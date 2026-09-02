@@ -25,18 +25,26 @@ src/private/resources/assets/chaosevents/sounds/screamers/10.ogg
 - регистр имени и путь должны совпадать точно;
 - файлы из `src/private/resources` попадут только в локально собранный JAR и не попадут в GitHub Actions.
 
-После обновления до 0.3.6 для следующей локальной приватной сборки используйте отдельное имя
-`0.3.6-private.2`, чтобы не перепутать её с уже собиравшейся `0.3.6-private.1`:
+В `main` уже находятся актуальные исправления групповых телепортов Places и отключения Xaero's
+Minimap в измерениях `places:*`. Поэтому новые приватные JAR со скримерами нужно собирать уже из
+свежего `main`, а не патчить старый `private.2`/`private.3` вручную.
+
+Перед следующей локальной приватной сборкой выполните:
 
 ```powershell
-.\gradlew.bat clean build "-Pmod_version=0.3.6-private.2"
+git pull --ff-only
+.\gradlew.bat clean build "-Pmod_version=0.3.6-private.4"
 ```
 
-Готовый файл будет называться `build/libs/chaosevents-0.3.6-private.2.jar`. Перед обновлением
-исходников используйте `git pull --ff-only`: приватные ресурсы останутся на месте.
+Готовый файл будет называться `build/libs/chaosevents-0.3.6-private.4.jar`. Номер `private.4`
+используется, чтобы не перепутать новую сборку из актуального `main` с уже созданным вручную
+`0.3.6-private.3`.
+
+Приватные ресурсы останутся на месте после `git pull`, потому что `src/private/resources/`
+игнорируется Git.
 
 Проверьте содержимое готового JAR в PowerShell:
 
 ```powershell
-tar -tf build/libs/chaosevents-0.3.6-private.2.jar | Select-String 'screamers/[0-9]+\.(png|ogg)'
+tar -tf build/libs/chaosevents-0.3.6-private.4.jar | Select-String 'screamers/[0-9]+\.(png|ogg)'
 ```
