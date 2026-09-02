@@ -2,6 +2,7 @@ package com.kiras.chaosevents.core;
 
 import com.kiras.chaosevents.event.AcceleratedTimeEvent;
 import com.kiras.chaosevents.event.BigEventEngine;
+import com.kiras.chaosevents.integration.PlacesHorrorLayer;
 import com.kiras.chaosevents.integration.PlacesRealitySlipManager;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
 import com.kiras.chaosevents.spatial.SpatialSwapManager;
@@ -57,6 +58,7 @@ public final class ChaosSessionManager {
             TriviaEngine.reset();
             SpatialSwapManager.reset();
             PlacesRealitySlipManager.reset();
+            PlacesHorrorLayer.reset();
             return false;
         }
 
@@ -77,6 +79,7 @@ public final class ChaosSessionManager {
         TriviaEngine.reset();
         SpatialSwapManager.reset();
         PlacesRealitySlipManager.reset();
+        PlacesHorrorLayer.reset();
     }
 
     public static synchronized void shutdown(MinecraftServer server) {
@@ -97,6 +100,10 @@ public final class ChaosSessionManager {
         synchronized (ChaosSessionManager.class) {
             if (state != State.RUNNING) return;
         }
+
+        // Horror ambience uses wall-clock deadlines and ticks every normal server tick. This keeps
+        // it slow and atmospheric even when AcceleratedTimeEvent temporarily raises server TPS.
+        PlacesHorrorLayer.tick(server);
 
         // Every large event filters Places players individually. The shared event timeline keeps
         // running for players in ordinary dimensions.
@@ -161,9 +168,11 @@ public final class ChaosSessionManager {
         TriviaEngine.startSession();
         SpatialSwapManager.startSession();
         PlacesRealitySlipManager.startSession(server);
+        PlacesHorrorLayer.startSession(server);
     }
 
     private static void stopEngines(MinecraftServer server) {
+        PlacesHorrorLayer.stopSession(server);
         BigEventEngine.stopSession(server);
         MicroPrankEngine.stopSession(server);
         TriviaEngine.stopSession();
