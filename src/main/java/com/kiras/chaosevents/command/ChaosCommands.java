@@ -3,6 +3,7 @@ package com.kiras.chaosevents.command;
 import com.kiras.chaosevents.config.ChaosConfigCategory;
 import com.kiras.chaosevents.core.ChaosSessionManager;
 import com.kiras.chaosevents.event.BigEventEngine;
+import com.kiras.chaosevents.integration.PlacesHorrorLayer;
 import com.kiras.chaosevents.integration.PlacesRealitySlipManager;
 import com.kiras.chaosevents.prank.MicroPrankEngine;
 import com.kiras.chaosevents.registry.ModItems;
@@ -43,7 +44,10 @@ public final class ChaosCommands {
                                 .then(Commands.literal("screamer").executes(context -> testScreamer(context.getSource())))
                                 .then(Commands.literal("trivia").executes(context -> testTrivia(context.getSource())))
                                 .then(Commands.literal("swap").executes(context -> testSwap(context.getSource())))
-                                .then(Commands.literal("places").executes(context -> testPlaces(context.getSource()))))
+                                .then(Commands.literal("places")
+                                        .executes(context -> testPlaces(context.getSource()))
+                                        .then(Commands.literal("horror")
+                                                .executes(context -> testPlacesHorror(context.getSource())))))
         );
     }
 
@@ -105,6 +109,7 @@ public final class ChaosCommands {
                 + "; " + ChaosSessionManager.getTriviaStatus()
                 + "; " + ChaosSessionManager.getSpatialStatus()
                 + "; " + PlacesRealitySlipManager.getStatusText()
+                + "; " + PlacesHorrorLayer.getStatusText()
                 + "; больших ивентов: " + BigEventEngine.getRegisteredEventCount()
                 + "; микроподлянок: " + MicroPrankEngine.getRegisteredPrankCount()
                 + "; вопросов: " + TriviaEngine.getQuestionCount();
@@ -192,6 +197,23 @@ public final class ChaosCommands {
             return 0;
         }
         source.sendSuccess(() -> Component.literal(PREFIX + "тестовый скрытый сдвиг в Places выполнен."), false);
+        return 1;
+    }
+
+    private static int testPlacesHorror(CommandSourceStack source) {
+        if (!ChaosSessionManager.isRunning()) {
+            source.sendFailure(Component.literal(PREFIX + "сначала запусти систему командой /chaos start."));
+            return 0;
+        }
+        if (!(source.getEntity() instanceof ServerPlayer player)) {
+            source.sendFailure(Component.literal(PREFIX + "хоррор-событие Places нужно запускать от имени игрока."));
+            return 0;
+        }
+        if (!PlacesHorrorLayer.forceRandomEvent(source.getServer(), player)) {
+            source.sendFailure(Component.literal(PREFIX + "сначала зайди в одно из измерений Places."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(PREFIX + "одно случайное хоррор-событие Places запущено."), false);
         return 1;
     }
 
