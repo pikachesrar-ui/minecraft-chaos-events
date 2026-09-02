@@ -66,6 +66,7 @@ public final class PlacesRealitySlipManager {
     private static final int ENDER_PEARL_CHANCE = 100;
     private static final int BED_CHANCE = 90;
     private static final int PAIRED_BED_CHANCE = 12;
+    private static final int ADDITIONAL_GROUP_MEMBER_CHANCE_PERCENT = 40;
     private static final double NEARBY_BED_PLAYER_DISTANCE_SQUARED = 6.0 * 6.0;
     private static final int DARK_DOOR_CHANCE = 80;
     private static final int DEEP_CAVE_CHANCE = 180;
@@ -510,12 +511,22 @@ public final class PlacesRealitySlipManager {
         for (ServerPlayer player : players) {
             origins.put(player.getUUID(), StoredPosition.capture(player));
             if (!invokePlacesPortal(player, destination) || !isInPlacesDimension(player)) {
-                ChaosEvents.LOGGER.warn("Places reality slip did not move {} into {}",
-                        player.getGameProfile().getName(), destination.dimensionId());
-                for (ServerPlayer movedPlayer : moved) {
-                    teleport(server, movedPlayer, origins.get(movedPlayer.getUUID()));
+                ServerPlayer leader = moved.isEmpty() ? null : moved.getFirst();
+                if (leader != null && moveToSlipLeader(player, leader)) {
+                    ChaosEvents.LOGGER.info(
+                            "Places portal fallback moved {} next to group leader {} in {}",
+                            player.getGameProfile().getName(),
+                            leader.getGameProfile().getName(),
+                            destination.dimensionId()
+                    );
+                } else {
+                    ChaosEvents.LOGGER.warn("Places reality slip did not move {} into {}",
+                            player.getGameProfile().getName(), destination.dimensionId());
+                    for (ServerPlayer movedPlayer : moved) {
+                        teleport(server, movedPlayer, origins.get(movedPlayer.getUUID()));
+                    }
+                    return false;
                 }
-                return false;
             }
             moved.add(player);
         }
@@ -543,31 +554,58 @@ public final class PlacesRealitySlipManager {
     }
 
     /**
-     * Chaos-triggered Places slips are social by default: if at least two eligible players are
-     * online, a single-player trigger automatically takes one random companion along. An actual
-     * solo session still transfers the only available player.
+     * Builds the social group for a Chaos-triggered Places slip.
+     *
+     * <p>If exactly two eligible players are online, both always travel together. With three or
+     * more eligible players, at least two always travel and every remaining eligible player has an
+     * independent 40% chance to join the same slip. Requested multi-player groups (for example
+     * paired beds) are preserved and can still gain additional companions.</p>
      */
     private static List<ServerPlayer> ensureMinimumSlipGroup(
             MinecraftServer server,
             List<ServerPlayer> requestedPlayers
     ) {
-        if (requestedPlayers.size() >= 2) {
-            return requestedPlayers;
-        }
-
-        List<ServerPlayer> companions = server.getPlayerList().getPlayers().stream()
+        List<ServerPlayer> result = new ArrayList<>(requestedPlayers);
+        List<ServerPlayer> companions = new ArrayList<>(server.getPlayerList().getPlayers().stream()
                 .filter(player -> !player.isSpectator())
                 .filter(player -> !isInPlacesDimension(player))
                 .filter(player -> requestedPlayers.stream().noneMatch(
                         requested -> requested.getUUID().equals(player.getUUID())))
-                .toList();
-        if (companions.isEmpty()) {
-            return requestedPlayers;
+                .toList());
+
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        while (result.size() < 2 && !companions.isEmpty()) {
+            result.add(companions.remove(random.nextInt(companions.size())));
         }
 
-        List<ServerPlayer> result = new ArrayList<>(requestedPlayers);
-        result.add(companions.get(ThreadLocalRandom.current().nextInt(companions.size())));
+        while (!companions.isEmpty()) {
+            ServerPlayer candidate = companions.remove(random.nextInt(companions.size()));
+            if (random.nextInt(100) < ADDITIONAL_GROUP_MEMBER_CHANCE_PERCENT) {
+                result.add(candidate);
+            }
+        }
+
         return List.copyOf(result);
+    }
+
+    /**
+     * Fallback for a Places 0.4.9 quirk where the native portal procedure can move the first member
+     * of a group but fail to move a later member. The already moved player is the authoritative
+     * destination, so companions are placed beside that player instead of splitting the group.
+     */
+    private static boolean moveToSlipLeader(ServerPlayer player, ServerPlayer leader) {
+        if (player == null || leader == null || !isInPlacesDimension(leader)) {
+            return false;
+        }
+        return player.teleportTo(
+                leader.serverLevel(),
+                leader.getX() + 0.75D,
+                leader.getY(),
+                leader.getZ() + 0.75D,
+                Set.<RelativeMovement>of(),
+                player.getYRot(),
+                player.getXRot()
+        );
     }
 
     private static ServerPlayer findNearbySleepingPartner(MinecraftServer server, ServerPlayer player) {
