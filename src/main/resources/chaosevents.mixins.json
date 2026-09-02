@@ -3,6 +3,9 @@
   "minVersion": "0.8",
   "package": "com.kiras.chaosevents.mixin",
   "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "PlacesDestinationFilterMixin"
+  ],
   "client": [
     "XaeroMinimapRendererMixin"
   ],
